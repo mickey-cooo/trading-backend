@@ -11,13 +11,13 @@ import trading.demo.model.entity.UserEntity;
 import trading.demo.service.UserService;
 
 @RestController()
-@RequestMapping("/user")
+@RequestMapping("api/v1/user")
 public class UserController {
 	@Autowired
 	private UserService userService;
 
 	@GetMapping("/id")
 	public ResponseEntity<UserEntity> getUserById(@RequestParam String id) {
-		return userService
+		return ResponseEntity.ok(userService.getUserById(id));
 	}
 }

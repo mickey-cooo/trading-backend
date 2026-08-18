@@ -1,4 +1,4 @@
-package trading.demo.model.userDto;
+package trading.demo.model.dto.userDto;
 
 import jakarta.validation.constraints.NotBlank;
 
