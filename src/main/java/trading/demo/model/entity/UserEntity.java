@@ -4,21 +4,20 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import trading.demo.model.enums.Common;
+import trading.demo.model.enums.UserType;
 
 @Entity
-@Data()
+@Getter
+@Setter
 @Table(name = "user")
-public class UserEntity {
-
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private String id;
+public class UserEntity extends TemplateEntity {
 
 	@Column(nullable = false)
 	private String firstName;
@@ -36,4 +35,11 @@ public class UserEntity {
 	@Column(nullable = false)
 	private Common status;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private UserType userType;
+
+	@OneToMany(fetch = FetchType.LAZY)
+	@JoinColumn(name = "user_id")
+	private AddressEntity address;
 }

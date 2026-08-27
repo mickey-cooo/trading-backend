@@ -57,10 +57,21 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-   <groupId>org.hibernate.validator</groupId> 
-   <artifactId>hibernate-validator</artifactId> 
-   <version>8.0.1.Final</version>
-</dependency>
+			<groupId>io.springfox</groupId>
+			<artifactId>springfox-swagger2</artifactId>
+			<version>2.6.1</version>
+		</dependency>
+		<dependency>
+        <groupId>io.springfox</groupId>
+        <artifactId>springfox-swagger-ui</artifactId>
+        <version>2.6.1</version>
+    </dependency>
+
+		<dependency>
+			<groupId>org.hibernate.validator</groupId>
+			<artifactId>hibernate-validator</artifactId>
+			<version>8.0.1.Final</version>
+		</dependency>
 	</dependencies>
 
 	<build>
