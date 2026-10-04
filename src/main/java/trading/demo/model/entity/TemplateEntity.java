@@ -1,6 +1,7 @@
 package trading.demo.model.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
@@ -8,23 +9,38 @@ import jakarta.persistence.Id;
 import lombok.Getter;
 import lombok.Setter;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 @Setter
 @Getter
-public class TemplateEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+@MappedSuperclass
+public abstract class TemplateEntity {
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
-    @Column(nullable = true)
-    private String createdBy;
+	@Column(name = "created_by")
+	private String createdBy;
 
-    @Column(nullable = true)
-    private LocalDateTime createdAt;
+	@Column(name = "created_at", nullable = false)
+	private Instant createdAt;
 
-    @Column(nullable = true)
-    private String updatedBy;
+	@Column(name = "updated_by")
+	private String updatedBy;
 
-    @Column(nullable = true)
-    private LocalDateTime updatedAt;
+	@Column(name = "updated_at", nullable = false)
+	private Instant updatedAt;
+
+	@PrePersist
+	protected void onCreate() {
+		createdAt = Instant.now();
+		updatedAt = createdAt;
+	}
+
+	@PreUpdate
+	protected void onUpdate() {
+		updatedAt = Instant.now();
+	}
 }

@@ -1,35 +1,59 @@
 package trading.demo.service;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import trading.demo.exception.ResourceNotFoundException;
-import trading.demo.model.entity.UserEntity;
+import trading.demo.mapper.UserMapper;
+import trading.demo.model.dto.userDto.CreateUserProfileRequest;
+import trading.demo.model.dto.userDto.UpdateUserProfileRequest;
+import trading.demo.model.dto.userDto.UserResponseDTO;
+import trading.demo.model.enums.RoleType;
 import trading.demo.repository.UserRepository;
 
 @Service
-public class UserServiceImpl {
+public class UserServiceImpl implements UserService {
+	private final UserRepository userRepository;
+	private final UserMapper userMapper;
 
-    private UserRepository userRepository;
+	public UserServiceImpl(UserRepository userRepository, UserMapper userMapper) {
+		this.userRepository = userRepository;
+		this.userMapper = userMapper;
+	}
 
-    public UserEntity createUser(UserEntity user) {
-        return userRepository.save(user);
-    }
+	@Override
+	@Transactional
+	public UserResponseDTO createUserProfile(UUID id, CreateUserProfileRequest request) {
+		var user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		userMapper.toEntity(request, user);
 
-    public UserEntity getUserById(Long id) {
-        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-    }
+		if (user.getCreatedAt() == null) {
+			user.setCreatedAt(Instant.now());
+		}
+		if (user.getRole() == null) {
+			user.setRole(RoleType.USER);
+		}
+		return userMapper.toDTO(userRepository.save(user));
+	}
 
-    public UserEntity getListUser(Long[] ids) {
-        return userRepository.findAll(ids).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-    }
+	@Override
+	public UserResponseDTO getUserById(UUID id) {
+		return userRepository.findById(id).map(userMapper::toDTO)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+	}
 
-    public UserEntity updateUser(Long id, UserEntity user) {
-        UserEntity existingUser = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        existingUser.setFirstName(user.getFirstName());
-        existingUser.setLastName(user.getLastName());
-        existingUser.setEmail(user.getEmail());
-        return userRepository.save(existingUser);
-    }
+	@Override
+	public List<UserResponseDTO> getListUser(List<UUID> ids) {
+		return userRepository.findAllById(ids).stream().map(userMapper::toDTO).toList();
+	}
 
+	@Override
+	@Transactional
+	public UserResponseDTO updateUserProfile(UUID id, UpdateUserProfileRequest request) {
+		var user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		userMapper.updateEntity(request, user);
+		return userMapper.toDTO(userRepository.save(user));
+	}
 }

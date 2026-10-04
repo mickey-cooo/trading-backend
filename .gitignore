@@ -29,9 +29,13 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+##Docs
+/docs
+
 ### claude ###
 .claude/
 CLAUDE.md
+AGENTS.md
 
 
 ### VS Code ###
