@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -24,6 +25,8 @@ import trading.demo.service.UserService;
 @Validated
 @RequestMapping("/api/v1/users")
 public class UserController {
+	private static final String SELF_OR_ADMIN = "#id == principal.id or hasRole('ADMIN')";
+
 	private final UserService userService;
 
 	public UserController(UserService userService) {
@@ -31,22 +34,26 @@ public class UserController {
 	}
 
 	@PostMapping("/{id}/profile")
+	@PreAuthorize(SELF_OR_ADMIN)
 	public ResponseEntity<UserResponseDTO> createUserProfile(@PathVariable UUID id,
 			@Valid @RequestBody CreateUserProfileRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUserProfile(id, request));
 	}
 
 	@GetMapping("/{id}")
+	@PreAuthorize(SELF_OR_ADMIN)
 	public ResponseEntity<UserResponseDTO> getUserById(@PathVariable UUID id) {
 		return ResponseEntity.ok(userService.getUserById(id));
 	}
 
 	@GetMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<List<UserResponseDTO>> getListUser(@RequestParam @Size(min = 1, max = 100) List<UUID> ids) {
 		return ResponseEntity.ok(userService.getListUser(ids));
 	}
 
 	@PatchMapping("/{id}/profile")
+	@PreAuthorize(SELF_OR_ADMIN)
 	public ResponseEntity<UserResponseDTO> updateUserProfile(@PathVariable UUID id,
 			@Valid @RequestBody UpdateUserProfileRequest request) {
 		return ResponseEntity.ok(userService.updateUserProfile(id, request));
