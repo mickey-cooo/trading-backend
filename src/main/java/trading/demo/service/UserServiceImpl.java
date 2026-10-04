@@ -3,13 +3,17 @@ package trading.demo.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import trading.demo.exception.ResourceNotFoundException;
+import trading.demo.exception.ValidationException;
 import trading.demo.mapper.UserMapper;
 import trading.demo.model.dto.userDto.CreateUserProfileRequest;
+import trading.demo.model.dto.userDto.RegisterDTO;
 import trading.demo.model.dto.userDto.UpdateUserProfileRequest;
 import trading.demo.model.dto.userDto.UserResponseDTO;
+import trading.demo.model.entity.UserEntity;
 import trading.demo.model.enums.RoleType;
 import trading.demo.repository.UserRepository;
 
@@ -17,10 +21,12 @@ import trading.demo.repository.UserRepository;
 public class UserServiceImpl implements UserService {
 	private final UserRepository userRepository;
 	private final UserMapper userMapper;
+	private final PasswordEncoder passwordEncoder;
 
-	public UserServiceImpl(UserRepository userRepository, UserMapper userMapper) {
+	public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
 		this.userRepository = userRepository;
 		this.userMapper = userMapper;
+		this.passwordEncoder = passwordEncoder;
 	}
 
 	@Override
@@ -54,6 +60,17 @@ public class UserServiceImpl implements UserService {
 	public UserResponseDTO updateUserProfile(UUID id, UpdateUserProfileRequest request) {
 		var user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
 		userMapper.updateEntity(request, user);
+		return userMapper.toDTO(userRepository.save(user));
+	}
+
+	@Override
+	public UserResponseDTO signUp(RegisterDTO request) {
+		if (!request.getPassword().equals(request.getConfirmPassword())) {
+			throw new ValidationException("Passwords do not match");
+		}
+		var user = new UserEntity();
+		user.setEmail(request.getEmail());
+		user.setPassword(passwordEncoder.encode(request.getPassword()));
 		return userMapper.toDTO(userRepository.save(user));
 	}
 }
