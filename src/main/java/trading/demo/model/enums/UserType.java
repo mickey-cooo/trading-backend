@@ -1,17 +1,15 @@
 package trading.demo.model.enums;
 
 public enum UserType {
-    TRADER("trader"),
-    BROKER("broker"),
-    DEALER("dealer");
+	TRADER("trader"), BROKER("broker"), DEALER("dealer"), GUEST("guest");
 
-    private final String value;
+	private final String value;
 
-    UserType(String value) {
-        this.value = value;
-    }
+	UserType(String value) {
+		this.value = value;
+	}
 
-    public String getValue() {
-        return value;
-    }
+	public String getValue() {
+		return value;
+	}
 }

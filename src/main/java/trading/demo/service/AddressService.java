@@ -1,5 +1,7 @@
 package trading.demo.service;
 
-public class AddressService {
+import trading.demo.model.entity.AddressEntity;
 
+public interface AddressService {
+	AddressEntity createAddress(AddressEntity address);
 }

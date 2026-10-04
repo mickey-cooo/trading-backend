@@ -1,22 +1,16 @@
 package trading.demo.model.dto.userDto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
 
+@Data
 public class UpdateUserProfileRequest {
-    @NotBlank
-    private String firstName;
+	@NotBlank
+	@Size(max = 100)
+	private String firstName;
 
-    @NotBlank
-    private String lastName;
-
-    @NotBlank
-    private String email;
-
-    public String getFirstName() {
-        return firstName;
-    }
-
-    public String getLastName() {
-        return lastName;
-    }
+	@NotBlank
+	@Size(max = 100)
+	private String lastName;
 }
