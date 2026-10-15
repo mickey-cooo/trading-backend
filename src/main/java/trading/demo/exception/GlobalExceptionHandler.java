@@ -19,6 +19,11 @@ public class GlobalExceptionHandler {
 		return problem(HttpStatus.NOT_FOUND, exception.getMessage());
 	}
 
+	@ExceptionHandler(InvalidTokenException.class)
+	ResponseEntity<ProblemDetail> handleInvalidToken(InvalidTokenException exception) {
+		return problem(HttpStatus.UNAUTHORIZED, exception.getMessage());
+	}
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	ResponseEntity<ProblemDetail> handleInvalidBody(MethodArgumentNotValidException exception) {
 		var errors = new LinkedHashMap<String, String>();

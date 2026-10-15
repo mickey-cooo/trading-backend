@@ -64,7 +64,7 @@ public class UserServiceImpl implements UserService {
 	}
 
 	@Override
-	public UserResponseDTO signUp(RegisterDTO request) {
+	public UserResponseDTO register(RegisterDTO request) {
 		if (!request.getPassword().equals(request.getConfirmPassword())) {
 			throw new ValidationException("Passwords do not match");
 		}

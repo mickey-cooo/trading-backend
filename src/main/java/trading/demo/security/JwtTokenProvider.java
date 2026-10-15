@@ -1,6 +1,8 @@
 package trading.demo.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.CompressionCodecResolver;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -11,17 +13,35 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import jakarta.annotation.PostConstruct;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtTokenProvider {
+	// this service never issues compressed tokens; the default resolver would
+	// inflate an
+	// attacker-chosen "zip" payload (unbounded) before the signature is checked
+	private static final CompressionCodecResolver NO_COMPRESSION = header -> {
+		if (header.getCompressionAlgorithm() != null) {
+			throw new JwtException("compressed tokens are not accepted");
+		}
+		return null;
+	};
+
 	@Value("${security.jwt.secret-key}")
 	private String secretKey;
 
 	@Value("${security.jwt.expiration-time}")
 	private long jwtExpiration;
+
+	// a missing or weak key must stop startup, not surface as a 500 on first login
+	@PostConstruct
+	void validateKey() {
+		getSignInKey();
+	}
 
 	public String extractUsername(String token) {
 		return extractClaim(token, Claims::getSubject);
@@ -65,7 +85,8 @@ public class JwtTokenProvider {
 	}
 
 	private Claims extractAllClaims(String token) {
-		return Jwts.parserBuilder().setSigningKey(getSignInKey()).build().parseClaimsJws(token).getBody();
+		return Jwts.parserBuilder().setCompressionCodecResolver(NO_COMPRESSION).setSigningKey(getSignInKey()).build()
+				.parseClaimsJws(token).getBody();
 	}
 
 	private Key getSignInKey() {

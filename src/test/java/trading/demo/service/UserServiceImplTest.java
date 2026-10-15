@@ -54,7 +54,7 @@ class UserServiceImplTest {
 	}
 
 	@Test
-	void signUpHashesPasswordAndRejectsMismatch() {
+	void registerHashesPasswordAndRejectsMismatch() {
 		var savedUser = new AtomicReference<UserEntity>();
 		var repository = (UserRepository) Proxy.newProxyInstance(getClass().getClassLoader(),
 				new Class<?>[]{UserRepository.class}, (proxy, method, arguments) -> {
@@ -68,7 +68,7 @@ class UserServiceImplTest {
 		request.setPassword("correct-horse");
 		request.setConfirmPassword("correct-horse");
 
-		service.signUp(request);
+		service.register(request);
 
 		assertEquals("bob@example.com", savedUser.get().getEmail());
 		assertTrue(encoder.matches("correct-horse", savedUser.get().getPassword()));
@@ -76,7 +76,7 @@ class UserServiceImplTest {
 
 		savedUser.set(null);
 		request.setConfirmPassword("different");
-		assertThrows(ValidationException.class, () -> service.signUp(request));
+		assertThrows(ValidationException.class, () -> service.register(request));
 		assertEquals(null, savedUser.get());
 	}
 }

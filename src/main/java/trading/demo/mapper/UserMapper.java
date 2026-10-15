@@ -29,7 +29,11 @@ public class UserMapper {
 	}
 
 	public void updateEntity(UpdateUserProfileRequest request, UserEntity user) {
-		user.setFirstName(request.getFirstName().strip());
-		user.setLastName(request.getLastName().strip());
+		if (request.getFirstName() != null) {
+			user.setFirstName(request.getFirstName().strip());
+		}
+		if (request.getLastName() != null) {
+			user.setLastName(request.getLastName().strip());
+		}
 	}
 }

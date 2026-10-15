@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class SecurityConfigTest {
 	@Test
 	void usesArgon2ForCredentialPasswords() {
-		var passwordEncoder = new SecurityConfig().passwordEncoder();
+		var passwordEncoder = new SecurityConfig().passwordEncoder(2);
 		var rawPassword = "correct horse battery staple";
 
 		var passwordHash = passwordEncoder.encode(rawPassword);

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Base64;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import trading.demo.model.entity.UserEntity;
@@ -52,5 +53,16 @@ class JwtTokenProviderTest {
 		String token = provider.generateToken(user);
 
 		assertThrows(ExpiredJwtException.class, () -> provider.isTokenValid(token, user));
+	}
+
+	@Test
+	void compressedTokenIsRejectedBeforeInflation() {
+		var enc = Base64.getUrlEncoder().withoutPadding();
+		var header = enc.encodeToString("{\"alg\":\"HS256\",\"zip\":\"DEF\"}".getBytes());
+		var token = header + "." + enc.encodeToString(new byte[]{1, 2, 3}) + "." + enc.encodeToString(new byte[32]);
+
+		var e = assertThrows(JwtException.class, () -> provider(60_000).extractUsername(token));
+
+		assertTrue(e.getMessage().contains("compressed"));
 	}
 }
