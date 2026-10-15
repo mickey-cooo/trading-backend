@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Base64;
-import java.util.UUID;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
@@ -56,8 +55,8 @@ class DemoApplicationTests {
 		user = userRepository.saveAndFlush(user);
 		var owner = user;
 
-		mockMvc.perform(post("/api/v1/users/{id}/profile", user.getId()).with(user(owner))
-				.contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(
+				post("/api/v1/users/me/profile").with(user(owner)).contentType(MediaType.APPLICATION_JSON).content("""
 						{"firstName":" Alice ","lastName":" Example "}
 						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.firstName").value("Alice"))
 				.andExpect(jsonPath("$.lastName").value("Example")).andExpect(jsonPath("$.email").doesNotExist())
@@ -68,49 +67,70 @@ class DemoApplicationTests {
 		assertEquals("existing-password-hash", savedUser.getPassword());
 		assertNotNull(savedUser.getCreatedAt());
 
-		mockMvc.perform(post("/api/v1/users/{id}/profile", user.getId()).with(user(owner))
-				.contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(
+				post("/api/v1/users/me/profile").with(user(owner)).contentType(MediaType.APPLICATION_JSON).content("""
 						{"firstName":"Alice","lastName":"Example","email":"changed@example.com","password":"changed"}
 						""")).andExpect(status().isBadRequest());
 	}
 
 	@Test
-	void signUpLoginThenCallProtectedEndpoint() throws Exception {
-		var signUp = mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
+	void registerLoginRefreshLogout() throws Exception {
+		var signUp = mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"bob@example.com","password":"correct-horse","confirmPassword":"correct-horse"}
 				""")).andExpect(status().isCreated()).andExpect(jsonPath("$.password").doesNotExist()).andReturn();
 		String id = JsonPath.read(signUp.getResponse().getContentAsString(), "$.id");
 
-		mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"bob@example.com","password":"correct-horse","confirmPassword":"correct-horse"}
 				""")).andExpect(status().isConflict());
-		mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"carol@example.com","password":"correct-horse","confirmPassword":"different"}
 				""")).andExpect(status().isBadRequest());
 
-		mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
+		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"bob@example.com","password":"wrong-password"}
 				""")).andExpect(status().isUnauthorized());
-		var login = mockMvc.perform(post("/auth/login").header("Authorization", "Bearer stale-token")
+		var login = mockMvc.perform(post("/api/v1/auth/login").header("Authorization", "Bearer stale-token")
 				.contentType(MediaType.APPLICATION_JSON).content("""
 						{"email":"bob@example.com","password":"correct-horse"}
 						""")).andExpect(status().isOk()).andReturn();
-		String token = JsonPath.read(login.getResponse().getContentAsString(), "$.token");
+		String token = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+		String refresh = JsonPath.read(login.getResponse().getContentAsString(), "$.refreshToken");
 
-		mockMvc.perform(get("/api/v1/users/{id}", id)).andExpect(status().isUnauthorized());
-		mockMvc.perform(get("/api/v1/users/{id}", id).header("Authorization", "Bearer stale-token"))
+		mockMvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer stale-token"))
 				.andExpect(status().isUnauthorized());
-		mockMvc.perform(get("/api/v1/users/{id}", id).header("Authorization", "Bearer " + token))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
+		mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(id));
+		mockMvc.perform(patch("/api/v1/users/me").header("Authorization", "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"firstName":"Bob"}
+						""")).andExpect(status().isOk()).andExpect(jsonPath("$.firstName").value("Bob"));
 
-		// another user's id, and the admin-only list, are forbidden
-		mockMvc.perform(get("/api/v1/users/{id}", UUID.randomUUID()).header("Authorization", "Bearer " + token))
+		// no path carries another user's id for a normal user; admin-only routes are
+		// forbidden
+		mockMvc.perform(get("/api/v1/users/{id}", id).header("Authorization", "Bearer " + token))
 				.andExpect(status().isForbidden());
-		mockMvc.perform(patch("/api/v1/users/{id}/profile", UUID.randomUUID())
-				.header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content("""
-						{"firstName":"Mallory","lastName":"Example"}
-						""")).andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/users").param("ids", id).header("Authorization", "Bearer " + token))
 				.andExpect(status().isForbidden());
+
+		// refresh rotates; reusing the old token fails and revokes the new one too
+		var rotated = mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"refreshToken\":\"" + refresh + "\"}")).andExpect(status().isOk()).andReturn();
+		String next = JsonPath.read(rotated.getResponse().getContentAsString(), "$.refreshToken");
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"refreshToken\":\"" + refresh + "\"}")).andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"refreshToken\":\"" + next + "\"}")).andExpect(status().isUnauthorized());
+
+		// logout revokes the token
+		var again = mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
+				{"email":"bob@example.com","password":"correct-horse"}
+				""")).andExpect(status().isOk()).andReturn();
+		String last = JsonPath.read(again.getResponse().getContentAsString(), "$.refreshToken");
+		mockMvc.perform(post("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isNoContent());
+		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isUnauthorized());
 	}
 }

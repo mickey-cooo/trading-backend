@@ -24,7 +24,11 @@ import trading.demo.security.JwtTokenProvider;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-	private static final RequestMatcher AUTH_ROUTES = PathPatternRequestMatcher.withDefaults().matcher("/auth/**");
+	private static final RequestMatcher AUTH_ROUTES = PathPatternRequestMatcher.withDefaults()
+			.matcher("/api/v1/auth/**");
+
+	// a signed HS256 token with sub/iat/exp is ~200 chars
+	private static final int MAX_AUTH_HEADER_LENGTH = 2048;
 
 	private final HandlerExceptionResolver handlerExceptionResolver;
 
@@ -51,6 +55,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
 			filterChain.doFilter(request, response);
+			return;
+		}
+
+		if (authHeader.length() > MAX_AUTH_HEADER_LENGTH) {
+			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 			return;
 		}
 

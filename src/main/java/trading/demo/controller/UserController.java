@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -19,29 +20,39 @@ import org.springframework.web.bind.annotation.RestController;
 import trading.demo.model.dto.userDto.CreateUserProfileRequest;
 import trading.demo.model.dto.userDto.UpdateUserProfileRequest;
 import trading.demo.model.dto.userDto.UserResponseDTO;
+import trading.demo.model.entity.UserEntity;
 import trading.demo.service.UserService;
 
 @RestController
 @Validated
 @RequestMapping("/api/v1/users")
 public class UserController {
-	private static final String SELF_OR_ADMIN = "#id == principal.id or hasRole('ADMIN')";
-
 	private final UserService userService;
 
 	public UserController(UserService userService) {
 		this.userService = userService;
 	}
 
-	@PostMapping("/{id}/profile")
-	@PreAuthorize(SELF_OR_ADMIN)
-	public ResponseEntity<UserResponseDTO> createUserProfile(@PathVariable UUID id,
+	// the caller's own data: the id always comes from the token, never the URL
+	@GetMapping("/me")
+	public ResponseEntity<UserResponseDTO> getMe(@AuthenticationPrincipal UserEntity me) {
+		return ResponseEntity.ok(userService.getUserById(me.getId()));
+	}
+
+	@PostMapping("/me/profile")
+	public ResponseEntity<UserResponseDTO> createMyProfile(@AuthenticationPrincipal UserEntity me,
 			@Valid @RequestBody CreateUserProfileRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUserProfile(id, request));
+		return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUserProfile(me.getId(), request));
+	}
+
+	@PatchMapping("/me")
+	public ResponseEntity<UserResponseDTO> updateMe(@AuthenticationPrincipal UserEntity me,
+			@Valid @RequestBody UpdateUserProfileRequest request) {
+		return ResponseEntity.ok(userService.updateUserProfile(me.getId(), request));
 	}
 
 	@GetMapping("/{id}")
-	@PreAuthorize(SELF_OR_ADMIN)
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<UserResponseDTO> getUserById(@PathVariable UUID id) {
 		return ResponseEntity.ok(userService.getUserById(id));
 	}
@@ -50,12 +61,5 @@ public class UserController {
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<List<UserResponseDTO>> getListUser(@RequestParam @Size(min = 1, max = 100) List<UUID> ids) {
 		return ResponseEntity.ok(userService.getListUser(ids));
-	}
-
-	@PatchMapping("/{id}/profile")
-	@PreAuthorize(SELF_OR_ADMIN)
-	public ResponseEntity<UserResponseDTO> updateUserProfile(@PathVariable UUID id,
-			@Valid @RequestBody UpdateUserProfileRequest request) {
-		return ResponseEntity.ok(userService.updateUserProfile(id, request));
 	}
 }

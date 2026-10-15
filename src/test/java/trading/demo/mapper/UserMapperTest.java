@@ -66,5 +66,12 @@ class UserMapperTest {
 		assertEquals("Alicia", user.getFirstName());
 		assertEquals("Updated", user.getLastName());
 		assertEquals("alice@example.com", user.getEmail());
+
+		var partial = new UpdateUserProfileRequest();
+		partial.setFirstName("Ali");
+		mapper.updateEntity(partial, user);
+
+		assertEquals("Ali", user.getFirstName());
+		assertEquals("Updated", user.getLastName());
 	}
 }

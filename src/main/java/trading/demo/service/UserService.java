@@ -16,5 +16,5 @@ public interface UserService {
 
 	UserResponseDTO updateUserProfile(UUID id, UpdateUserProfileRequest request);
 
-	UserResponseDTO signUp(RegisterDTO request);
+	UserResponseDTO register(RegisterDTO request);
 }
