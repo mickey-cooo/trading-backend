@@ -15,4 +15,7 @@ public interface MarketService {
 
 	// save a new price; it stays current until the next one
 	QuoteResponse publishQuote(String symbol, BigDecimal price);
+
+	// throws ValidationException unless quantity is above zero, max 8 decimals
+	void requireValidQuantity(BigDecimal quantity);
 }

@@ -98,6 +98,24 @@ class MarketServiceImplTest {
 		assertThrows(ValidationException.class, () -> marketService.publishQuote("BTC-USDT", null));
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {"0.00000001", "0.123456780", "1", "1E-8"})
+	void acceptsQuantitiesWithUpToEightDecimals(String quantity) {
+		marketService.requireValidQuantity(new BigDecimal(quantity));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"0", "-1", "0.000000001", "1E-9", "1000000000000000000", "1E+30", "1E+2147483647",
+			"1E-2147483647"})
+	void rejectsQuantitiesBreakingTheQuantityRules(String badQuantity) {
+		assertThrows(ValidationException.class, () -> marketService.requireValidQuantity(new BigDecimal(badQuantity)));
+	}
+
+	@Test
+	void rejectsMissingQuantity() {
+		assertThrows(ValidationException.class, () -> marketService.requireValidQuantity(null));
+	}
+
 	@Test
 	void symbolIsMatchedIgnoringCaseAndSpaces() {
 		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());

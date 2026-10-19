@@ -21,8 +21,10 @@ import trading.demo.repository.QuoteRepository;
 public class MarketServiceImpl implements MarketService {
 	// a 3rd decimal is rejected, never rounded
 	private static final int PRICE_DECIMALS = 2;
-	// at most 18 digits before the dot, far above any real price
-	private static final int MAX_PRICE_DIGITS_BEFORE_DOT = 18;
+	// a 9th decimal is rejected, never rounded
+	private static final int QUANTITY_DECIMALS = 8;
+	// at most 18 digits before the dot, far above any real price or quantity
+	private static final int MAX_DIGITS_BEFORE_DOT = 18;
 	// the first quote of a market gets version 1
 	private static final long VERSION_BEFORE_FIRST_QUOTE = 0;
 
@@ -56,7 +58,7 @@ public class MarketServiceImpl implements MarketService {
 	@Override
 	@Transactional
 	public QuoteResponse publishQuote(String symbol, BigDecimal price) {
-		requireValidPrice(price);
+		requireValidAmount(price, PRICE_DECIMALS, "Price");
 		// lock the row so two publishes cannot get the same version
 		MarketEntity market = marketRepository.findBySymbolLockedForWrite(normalizeSymbol(symbol))
 				.orElseThrow(MarketServiceImpl::marketNotFound);
@@ -71,17 +73,23 @@ public class MarketServiceImpl implements MarketService {
 		return marketMapper.toQuoteResponse(quoteRepository.save(newQuote));
 	}
 
-	private static void requireValidPrice(BigDecimal price) {
-		if (price == null || price.signum() <= 0) {
-			throw new ValidationException("Price must be above zero");
+	@Override
+	public void requireValidQuantity(BigDecimal quantity) {
+		requireValidAmount(quantity, QUANTITY_DECIMALS, "Quantity");
+	}
+
+	// shared by price and quantity: above zero, no extra decimals, no giant numbers
+	private static void requireValidAmount(BigDecimal amount, int maxDecimals, String name) {
+		if (amount == null || amount.signum() <= 0) {
+			throw new ValidationException(name + " must be above zero");
 		}
 		// "65000.500" is fine (same number as 65000.50), "65000.505" is not
-		var withoutTrailingZeros = price.stripTrailingZeros();
+		var withoutTrailingZeros = amount.stripTrailingZeros();
 		var decimals = Math.max(withoutTrailingZeros.scale(), 0);
 		// long, not int: 1E+2147483647 would overflow an int
 		long digitsBeforeDot = (long) withoutTrailingZeros.precision() - withoutTrailingZeros.scale();
-		if (decimals > PRICE_DECIMALS || digitsBeforeDot > MAX_PRICE_DIGITS_BEFORE_DOT) {
-			throw new ValidationException("Price has too many digits");
+		if (decimals > maxDecimals || digitsBeforeDot > MAX_DIGITS_BEFORE_DOT) {
+			throw new ValidationException(name + " has too many digits");
 		}
 	}
 
