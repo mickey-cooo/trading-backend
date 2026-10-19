@@ -17,6 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
+import trading.demo.config.MarketProperties;
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.exception.ValidationException;
 import trading.demo.mapper.MarketMapper;
@@ -35,7 +36,8 @@ class MarketServiceImplTest {
 	void setUp() {
 		marketRepository = mock(MarketRepository.class);
 		quoteRepository = mock(QuoteRepository.class);
-		marketService = new MarketServiceImpl(marketRepository, quoteRepository, new MarketMapper());
+		marketService = new MarketServiceImpl(marketRepository, quoteRepository, new MarketMapper(),
+				new MarketProperties(2, 8, 18));
 
 		bitcoinTetherPair = new MarketEntity();
 		bitcoinTetherPair.setSymbol("BTC-USDT");
@@ -81,11 +83,8 @@ class MarketServiceImplTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"0", "0.00", "-1", "-65000.50", "65000.505", "0.001", "1E-9", "1000000000000000000", // 19
-																													// digits
-																													// before
-																													// the
-																													// dot
+	// 1000000000000000000 has 19 digits before the dot
+	@ValueSource(strings = {"0", "0.00", "-1", "-65000.50", "65000.505", "0.001", "1E-9", "1000000000000000000",
 			"1E+30", "1E+2147483647", "1E-2147483647"})
 	void rejectsPricesBreakingThePriceRules(String badPrice) {
 		assertThrows(ValidationException.class, () -> marketService.publishQuote("BTC-USDT", new BigDecimal(badPrice)));

@@ -13,15 +13,15 @@ import trading.demo.repository.MarketRepository;
 // On startup, creates missing assets and pairs. Safe to rerun.
 @Component
 public class MarketSeeder implements ApplicationRunner {
-	private static final BigDecimal MIN_QUANTITY_STEP = new BigDecimal("0.00000001"); // 8 decimals
-	private static final BigDecimal MIN_PRICE_STEP = new BigDecimal("0.01"); // 2 decimals
-
 	private final AssetRepository assetRepository;
 	private final MarketRepository marketRepository;
+	private final MarketProperties marketProperties;
 
-	public MarketSeeder(AssetRepository assetRepository, MarketRepository marketRepository) {
+	public MarketSeeder(AssetRepository assetRepository, MarketRepository marketRepository,
+			MarketProperties marketProperties) {
 		this.assetRepository = assetRepository;
 		this.marketRepository = marketRepository;
+		this.marketProperties = marketProperties;
 	}
 
 	@Override
@@ -52,8 +52,8 @@ public class MarketSeeder implements ApplicationRunner {
 		market.setSymbol(symbol);
 		market.setBaseAsset(baseAsset);
 		market.setQuoteAsset(quoteAsset);
-		market.setMinQuantityStep(MIN_QUANTITY_STEP);
-		market.setMinPriceStep(MIN_PRICE_STEP);
+		market.setMinQuantityStep(BigDecimal.ONE.movePointLeft(marketProperties.quantityDecimals()));
+		market.setMinPriceStep(BigDecimal.ONE.movePointLeft(marketProperties.priceDecimals()));
 		marketRepository.save(market);
 	}
 }

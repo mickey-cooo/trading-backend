@@ -28,7 +28,7 @@ public class QuoteEntity extends TemplateEntity {
 	@Column(nullable = false, precision = 38, scale = 2)
 	private BigDecimal price;
 
-	// 1 for the first quote of a market, then +1 for each new quote
+	// 1 for the first quote of an market, then +1 for each new quote
 	@Column(nullable = false)
 	private long version;
 }

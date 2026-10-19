@@ -7,6 +7,7 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import trading.demo.config.MarketProperties;
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.exception.ValidationException;
 import trading.demo.mapper.MarketMapper;
@@ -19,24 +20,20 @@ import trading.demo.repository.QuoteRepository;
 
 @Service
 public class MarketServiceImpl implements MarketService {
-	// a 3rd decimal is rejected, never rounded
-	private static final int PRICE_DECIMALS = 2;
-	// a 9th decimal is rejected, never rounded
-	private static final int QUANTITY_DECIMALS = 8;
-	// at most 18 digits before the dot, far above any real price or quantity
-	private static final int MAX_DIGITS_BEFORE_DOT = 18;
 	// the first quote of a market gets version 1
 	private static final long VERSION_BEFORE_FIRST_QUOTE = 0;
 
 	private final MarketRepository marketRepository;
 	private final QuoteRepository quoteRepository;
 	private final MarketMapper marketMapper;
+	private final MarketProperties marketProperties;
 
 	public MarketServiceImpl(MarketRepository marketRepository, QuoteRepository quoteRepository,
-			MarketMapper marketMapper) {
+			MarketMapper marketMapper, MarketProperties marketProperties) {
 		this.marketRepository = marketRepository;
 		this.quoteRepository = quoteRepository;
 		this.marketMapper = marketMapper;
+		this.marketProperties = marketProperties;
 	}
 
 	@Override
@@ -58,7 +55,7 @@ public class MarketServiceImpl implements MarketService {
 	@Override
 	@Transactional
 	public QuoteResponse publishQuote(String symbol, BigDecimal price) {
-		requireValidAmount(price, PRICE_DECIMALS, "Price");
+		requireValidAmount(price, marketProperties.priceDecimals(), "Price");
 		// lock the row so two publishes cannot get the same version
 		MarketEntity market = marketRepository.findBySymbolLockedForWrite(normalizeSymbol(symbol))
 				.orElseThrow(MarketServiceImpl::marketNotFound);
@@ -68,18 +65,18 @@ public class MarketServiceImpl implements MarketService {
 
 		var newQuote = new QuoteEntity();
 		newQuote.setMarket(market);
-		newQuote.setPrice(price.setScale(PRICE_DECIMALS));
+		newQuote.setPrice(price.setScale(marketProperties.priceDecimals()));
 		newQuote.setVersion(lastVersion + 1);
 		return marketMapper.toQuoteResponse(quoteRepository.save(newQuote));
 	}
 
 	@Override
 	public void requireValidQuantity(BigDecimal quantity) {
-		requireValidAmount(quantity, QUANTITY_DECIMALS, "Quantity");
+		requireValidAmount(quantity, marketProperties.quantityDecimals(), "Quantity");
 	}
 
 	// shared by price and quantity: above zero, no extra decimals, no giant numbers
-	private static void requireValidAmount(BigDecimal amount, int maxDecimals, String name) {
+	private void requireValidAmount(BigDecimal amount, int maxDecimals, String name) {
 		if (amount == null || amount.signum() <= 0) {
 			throw new ValidationException(name + " must be above zero");
 		}
@@ -88,7 +85,7 @@ public class MarketServiceImpl implements MarketService {
 		var decimals = Math.max(withoutTrailingZeros.scale(), 0);
 		// long, not int: 1E+2147483647 would overflow an int
 		long digitsBeforeDot = (long) withoutTrailingZeros.precision() - withoutTrailingZeros.scale();
-		if (decimals > maxDecimals || digitsBeforeDot > MAX_DIGITS_BEFORE_DOT) {
+		if (decimals > maxDecimals || digitsBeforeDot > marketProperties.maxDigitsBeforeDot()) {
 			throw new ValidationException(name + " has too many digits");
 		}
 	}
