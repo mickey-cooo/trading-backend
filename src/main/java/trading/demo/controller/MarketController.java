@@ -28,6 +28,7 @@ public class MarketController {
 		return marketService.listMarkets();
 	}
 
+	// current price; stays current until the next quote, 404 before the first
 	@GetMapping("/{symbol}/quote")
 	public QuoteResponse getCurrentQuote(@PathVariable @Size(max = 41) String symbol) {
 		return marketService.getCurrentQuote(symbol);
