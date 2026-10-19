@@ -140,11 +140,11 @@ class DemoApplicationTests {
 	@Test
 	void marketsArePublicAndSeeded() throws Exception {
 		mockMvc.perform(get("/api/v1/markets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
-				.andExpect(jsonPath("$[0].symbol").value("BTC-USDT")).andExpect(jsonPath("$[0].base").value("BTC"))
+				.andExpect(jsonPath("$[0].pair").value("BTC-USDT")).andExpect(jsonPath("$[0].base").value("BTC"))
 				.andExpect(jsonPath("$[0].quote").value("USDT")).andExpect(jsonPath("$[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$[0].quantityIncrement").value("0.00000001"))
 				.andExpect(jsonPath("$[0].priceIncrement").value("0.01"))
-				.andExpect(jsonPath("$[1].symbol").value("ETH-USDT"));
+				.andExpect(jsonPath("$[1].pair").value("ETH-USDT"));
 	}
 
 	@Test
@@ -174,7 +174,7 @@ class DemoApplicationTests {
 
 		// public read, no token: the newest quote is the current price
 		mockMvc.perform(get("/api/v1/markets/BTC-USDT/quote")).andExpect(status().isOk())
-				.andExpect(jsonPath("$.symbol").value("BTC-USDT")).andExpect(jsonPath("$.price").value("65100.25"))
+				.andExpect(jsonPath("$.pair").value("BTC-USDT")).andExpect(jsonPath("$.price").value("65100.25"))
 				.andExpect(jsonPath("$.version").value(2)).andExpect(jsonPath("$.timestamp").exists());
 	}
 

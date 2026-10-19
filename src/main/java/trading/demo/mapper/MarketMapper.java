@@ -13,12 +13,12 @@ public class MarketMapper {
 		// DB keeps 18 decimals; strip zeros to show "0.00000001"
 		var quantityIncrement = market.getMinQuantityStep().stripTrailingZeros().toPlainString();
 		var priceIncrement = market.getMinPriceStep().stripTrailingZeros().toPlainString();
-		return new MarketResponse(market.getSymbol(), market.getBaseAsset().getSymbol(),
+		return new MarketResponse(market.getPair(), market.getBaseAsset().getSymbol(),
 				market.getQuoteAsset().getSymbol(), market.getStatus(), quantityIncrement, priceIncrement);
 	}
 
 	public QuoteResponse toQuoteResponse(QuoteEntity quote) {
-		return new QuoteResponse(quote.getMarket().getSymbol(), quote.getPrice().toPlainString(), quote.getVersion(),
+		return new QuoteResponse(quote.getMarket().getPair(), quote.getPrice().toPlainString(), quote.getVersion(),
 				quote.getCreatedAt());
 	}
 }

@@ -40,9 +40,9 @@ class MarketServiceImplTest {
 				new MarketProperties(2, 8, 18));
 
 		bitcoinTetherPair = new MarketEntity();
-		bitcoinTetherPair.setSymbol("BTC-USDT");
-		when(marketRepository.findBySymbolLockedForWrite("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
-		when(marketRepository.findBySymbol("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
+		bitcoinTetherPair.setPair("BTC-USDT");
+		when(marketRepository.findByPairLockedForWrite("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
+		when(marketRepository.findByPair("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
 		// save() hands back the quote it was given, like the real repository
 		when(quoteRepository.save(any(QuoteEntity.class))).thenAnswer(call -> call.getArgument(0));
 	}
@@ -55,7 +55,7 @@ class MarketServiceImplTest {
 
 		assertEquals(1, response.version());
 		assertEquals("65000.50", response.price());
-		assertEquals("BTC-USDT", response.symbol());
+		assertEquals("BTC-USDT", response.pair());
 	}
 
 	@Test
@@ -116,18 +116,18 @@ class MarketServiceImplTest {
 	}
 
 	@Test
-	void symbolIsMatchedIgnoringCaseAndSpaces() {
+	void pairIsMatchedIgnoringCaseAndSpaces() {
 		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
 
 		var response = marketService.publishQuote("  btc-usdt ", new BigDecimal("1"));
 
-		assertEquals("BTC-USDT", response.symbol());
+		assertEquals("BTC-USDT", response.pair());
 	}
 
 	@Test
-	void unknownSymbolIsNotFound() {
-		when(marketRepository.findBySymbolLockedForWrite("DOGE-USDT")).thenReturn(Optional.empty());
-		when(marketRepository.findBySymbol("DOGE-USDT")).thenReturn(Optional.empty());
+	void unknownPairIsNotFound() {
+		when(marketRepository.findByPairLockedForWrite("DOGE-USDT")).thenReturn(Optional.empty());
+		when(marketRepository.findByPair("DOGE-USDT")).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class,
 				() -> marketService.publishQuote("DOGE-USDT", new BigDecimal("1")));

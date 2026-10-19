@@ -39,14 +39,13 @@ public class MarketServiceImpl implements MarketService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<MarketResponse> listMarkets() {
-		return marketRepository.findAllByOrderBySymbolAsc().stream().map(marketMapper::toMarketResponse).toList();
+		return marketRepository.findAllByOrderByPairAsc().stream().map(marketMapper::toMarketResponse).toList();
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public QuoteResponse getCurrentQuote(String symbol) {
-		var market = marketRepository.findBySymbol(normalizeSymbol(symbol))
-				.orElseThrow(MarketServiceImpl::marketNotFound);
+	public QuoteResponse getCurrentQuote(String pair) {
+		var market = marketRepository.findByPair(normalizePair(pair)).orElseThrow(MarketServiceImpl::marketNotFound);
 		var currentQuote = quoteRepository.findFirstByMarketOrderByVersionDesc(market)
 				.orElseThrow(() -> new ResourceNotFoundException("No quote has been published for this market yet"));
 		return marketMapper.toQuoteResponse(currentQuote);
@@ -54,10 +53,10 @@ public class MarketServiceImpl implements MarketService {
 
 	@Override
 	@Transactional
-	public QuoteResponse publishQuote(String symbol, BigDecimal price) {
+	public QuoteResponse publishQuote(String pair, BigDecimal price) {
 		requireValidAmount(price, marketProperties.priceDecimals(), "Price");
 		// lock the row so two publishes cannot get the same version
-		MarketEntity market = marketRepository.findBySymbolLockedForWrite(normalizeSymbol(symbol))
+		MarketEntity market = marketRepository.findByPairLockedForWrite(normalizePair(pair))
 				.orElseThrow(MarketServiceImpl::marketNotFound);
 
 		var lastVersion = quoteRepository.findFirstByMarketOrderByVersionDesc(market).map(QuoteEntity::getVersion)
@@ -91,8 +90,8 @@ public class MarketServiceImpl implements MarketService {
 	}
 
 	// "btc-usdt" and " BTC-USDT " both mean BTC-USDT
-	private static String normalizeSymbol(String symbol) {
-		return symbol.strip().toUpperCase(Locale.ROOT);
+	private static String normalizePair(String pair) {
+		return pair.strip().toUpperCase(Locale.ROOT);
 	}
 
 	private static ResourceNotFoundException marketNotFound() {

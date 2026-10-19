@@ -17,16 +17,16 @@ import trading.demo.model.entity.MarketEntity;
 
 @Repository
 public interface MarketRepository extends JpaRepository<MarketEntity, UUID> {
-	boolean existsBySymbol(String symbol);
+	boolean existsByPair(String pair);
 
-	Optional<MarketEntity> findBySymbol(String symbol);
+	Optional<MarketEntity> findByPair(String pair);
 
 	// fetch both assets in one query, not 1 + 2N queries
 	@EntityGraph(attributePaths = {"baseAsset", "quoteAsset"})
-	List<MarketEntity> findAllByOrderBySymbolAsc();
+	List<MarketEntity> findAllByOrderByPairAsc();
 
 	// row lock: two publishes cannot pick the same version
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("select m from MarketEntity m where m.symbol = :symbol")
-	Optional<MarketEntity> findBySymbolLockedForWrite(@Param("symbol") String symbol);
+	@Query("select m from MarketEntity m where m.pair = :pair")
+	Optional<MarketEntity> findByPairLockedForWrite(@Param("pair") String pair);
 }

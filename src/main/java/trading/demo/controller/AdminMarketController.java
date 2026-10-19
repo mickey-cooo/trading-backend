@@ -27,9 +27,9 @@ public class AdminMarketController {
 		this.marketService = marketService;
 	}
 
-	@PostMapping("/{symbol}/quotes")
-	public ResponseEntity<QuoteResponse> publishQuote(@PathVariable @Size(max = 41) String symbol,
+	@PostMapping("/{pair}/quotes")
+	public ResponseEntity<QuoteResponse> publishQuote(@PathVariable @Size(max = 41) String pair,
 			@Valid @RequestBody PublishQuoteRequest request) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(marketService.publishQuote(symbol, request.price()));
+		return ResponseEntity.status(HttpStatus.CREATED).body(marketService.publishQuote(pair, request.price()));
 	}
 }

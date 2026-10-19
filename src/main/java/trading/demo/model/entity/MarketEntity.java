@@ -23,7 +23,7 @@ public class MarketEntity extends TemplateEntity {
 
 	// "BTC-USDT"
 	@Column(nullable = false, unique = true, length = 41)
-	private String symbol;
+	private String pair;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "base_asset_id", nullable = false)

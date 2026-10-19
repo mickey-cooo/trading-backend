@@ -44,12 +44,12 @@ public class MarketSeeder implements ApplicationRunner {
 	}
 
 	private void createMarketIfMissing(AssetEntity baseAsset, AssetEntity quoteAsset) {
-		var symbol = baseAsset.getSymbol() + "-" + quoteAsset.getSymbol();
-		if (marketRepository.existsBySymbol(symbol)) {
+		var pair = baseAsset.getSymbol() + "-" + quoteAsset.getSymbol();
+		if (marketRepository.existsByPair(pair)) {
 			return;
 		}
 		var market = new MarketEntity();
-		market.setSymbol(symbol);
+		market.setPair(pair);
 		market.setBaseAsset(baseAsset);
 		market.setQuoteAsset(quoteAsset);
 		market.setMinQuantityStep(BigDecimal.ONE.movePointLeft(marketProperties.quantityDecimals()));
