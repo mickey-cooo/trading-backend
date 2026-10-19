@@ -3,12 +3,16 @@ package trading.demo.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +29,7 @@ import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
 import trading.demo.repository.MarketRepository;
 import trading.demo.repository.QuoteRepository;
+import trading.demo.repository.QuoteRepository.CandleRow;
 
 class MarketServiceImplTest {
 	private MarketRepository marketRepository;
@@ -154,5 +159,46 @@ class MarketServiceImplTest {
 
 		assertEquals("65000.50", response.price());
 		assertEquals(7, response.version());
+	}
+
+	private static CandleRow candleRow(long time, String open, String high, String low, String close) {
+		var row = mock(CandleRow.class);
+		when(row.getTime()).thenReturn(time);
+		when(row.getOpen()).thenReturn(new BigDecimal(open));
+		when(row.getHigh()).thenReturn(new BigDecimal(high));
+		when(row.getLow()).thenReturn(new BigDecimal(low));
+		when(row.getClose()).thenReturn(new BigDecimal(close));
+		return row;
+	}
+
+	@Test
+	void candlesComeBackOldestFirst() {
+		// the query returns newest first; rows are built before stubbing so mocks do
+		// not nest
+		var newest = candleRow(1200, "101.00", "105.00", "99.50", "104.00");
+		var oldest = candleRow(1140, "100.00", "102.00", "98.00", "101.00");
+		when(quoteRepository.findCandles(any(), eq(300L), eq(2))).thenReturn(List.of(newest, oldest));
+
+		var candles = marketService.getCandles("btc-usdt", "5m", 2);
+
+		assertEquals(2, candles.size());
+		assertEquals(1140, candles.get(0).time());
+		assertEquals(1200, candles.get(1).time());
+		assertEquals("101.00", candles.get(1).open());
+		assertEquals("105.00", candles.get(1).high());
+		assertEquals("99.50", candles.get(1).low());
+		assertEquals("104.00", candles.get(1).close());
+	}
+
+	@Test
+	void candlesRejectUnknownIntervalBeforeTouchingTheDatabase() {
+		assertThrows(ValidationException.class, () -> marketService.getCandles("BTC-USDT", "2m", 10));
+
+		verify(quoteRepository, never()).findCandles(any(), anyLong(), anyInt());
+	}
+
+	@Test
+	void candlesForUnknownMarketAreNotFound() {
+		assertThrows(ResourceNotFoundException.class, () -> marketService.getCandles("DOGE-USDT", "1m", 10));
 	}
 }

@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -17,7 +18,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @Table(name = "quotes", uniqueConstraints = @UniqueConstraint(name = "uk_quotes_market_version", columnNames = {
-		"market_id", "version"}))
+		"market_id",
+		"version"}), indexes = @Index(name = "idx_quotes_market_created_at", columnList = "market_id, created_at"))
 public class QuoteEntity extends TemplateEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -2,10 +2,12 @@ package trading.demo.mapper;
 
 import org.springframework.stereotype.Component;
 
+import trading.demo.model.dto.marketDto.CandleResponse;
 import trading.demo.model.dto.marketDto.MarketResponse;
 import trading.demo.model.dto.marketDto.QuoteResponse;
 import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
+import trading.demo.repository.QuoteRepository.CandleRow;
 
 @Component
 public class MarketMapper {
@@ -20,5 +22,10 @@ public class MarketMapper {
 	public QuoteResponse toQuoteResponse(QuoteEntity quote) {
 		return new QuoteResponse(quote.getMarket().getPair(), quote.getPrice().toPlainString(), quote.getVersion(),
 				quote.getCreatedAt());
+	}
+
+	public CandleResponse toCandleResponse(CandleRow row) {
+		return new CandleResponse(row.getTime(), row.getOpen().toPlainString(), row.getHigh().toPlainString(),
+				row.getLow().toPlainString(), row.getClose().toPlainString());
 	}
 }

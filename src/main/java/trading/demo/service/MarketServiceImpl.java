@@ -1,8 +1,10 @@
 package trading.demo.service;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,10 +13,12 @@ import trading.demo.config.MarketProperties;
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.exception.ValidationException;
 import trading.demo.mapper.MarketMapper;
+import trading.demo.model.dto.marketDto.CandleResponse;
 import trading.demo.model.dto.marketDto.MarketResponse;
 import trading.demo.model.dto.marketDto.QuoteResponse;
 import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
+import trading.demo.model.enums.CandleInterval;
 import trading.demo.repository.MarketRepository;
 import trading.demo.repository.QuoteRepository;
 
@@ -67,6 +71,18 @@ public class MarketServiceImpl implements MarketService {
 		newQuote.setPrice(price.setScale(marketProperties.priceDecimals()));
 		newQuote.setVersion(lastVersion + 1);
 		return marketMapper.toQuoteResponse(quoteRepository.save(newQuote));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CandleResponse> getCandles(String pair, String interval, int limit) {
+		var candleInterval = CandleInterval.fromCode(interval);
+		var market = marketRepository.findByPair(normalizePair(pair)).orElseThrow(MarketServiceImpl::marketNotFound);
+		var candles = quoteRepository.findCandles(market.getId(), candleInterval.getSeconds(), limit).stream()
+				.map(marketMapper::toCandleResponse).collect(Collectors.toList());
+		// query returns newest first; charts want oldest first
+		Collections.reverse(candles);
+		return candles;
 	}
 
 	@Override
