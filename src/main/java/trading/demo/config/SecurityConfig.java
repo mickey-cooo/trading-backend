@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -28,12 +29,19 @@ import trading.demo.repository.UserRepository;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+	// open to everyone, no token needed (JwtAuthenticationFilter skips these too)
+	public static final String[] PUBLIC_MARKET_GET_PATHS = {"/api/v1/markets", "/api/v1/markets/*/quote"};
+
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
 			throws Exception {
 		http.csrf(csrf -> csrf.disable()).cors(Customizer.withDefaults())
 				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/v1/auth/**", "/error").permitAll()
-						.anyRequest().authenticated())
+						// non-admins are denied before the body is read
+						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+						// public prices: only listed routes
+						.requestMatchers(HttpMethod.GET, PUBLIC_MARKET_GET_PATHS).permitAll().anyRequest()
+						.authenticated())
 				.exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

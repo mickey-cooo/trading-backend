@@ -1,6 +1,10 @@
 package trading.demo.config;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.http.HttpMethod;
 
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -42,10 +46,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		this.userDetailsService = userDetailsService;
 	}
 
-	// a stale token must not block signing up or logging in again
+	private static final List<RequestMatcher> PUBLIC_MARKET_ROUTES = Arrays
+			.stream(SecurityConfig.PUBLIC_MARKET_GET_PATHS)
+			.<RequestMatcher>map(path -> PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, path))
+			.toList();
+
+	// a stale token must not block auth routes or public prices
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return AUTH_ROUTES.matches(request);
+		return AUTH_ROUTES.matches(request) || PUBLIC_MARKET_ROUTES.stream().anyMatch(route -> route.matches(request));
 	}
 
 	@Override
