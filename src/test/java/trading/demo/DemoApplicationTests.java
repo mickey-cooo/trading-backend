@@ -22,6 +22,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import trading.demo.model.entity.UserEntity;
+import trading.demo.model.enums.RoleType;
 import trading.demo.repository.UserRepository;
 
 @SpringBootTest
@@ -132,5 +133,101 @@ class DemoApplicationTests {
 				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isNoContent());
 		mockMvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
 				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isUnauthorized());
+	}
+
+	// Markets: MarketSeeder creates BTC-USDT and ETH-USDT at startup.
+	// BTC-USDT is the pair these tests publish to; ETH-USDT stays without quotes.
+	@Test
+	void marketsArePublicAndSeeded() throws Exception {
+		mockMvc.perform(get("/api/v1/markets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[0].symbol").value("BTC-USDT")).andExpect(jsonPath("$[0].base").value("BTC"))
+				.andExpect(jsonPath("$[0].quote").value("USDT")).andExpect(jsonPath("$[0].status").value("ACTIVE"))
+				.andExpect(jsonPath("$[0].quantityIncrement").value("0.00000001"))
+				.andExpect(jsonPath("$[0].priceIncrement").value("0.01"))
+				.andExpect(jsonPath("$[1].symbol").value("ETH-USDT"));
+	}
+
+	@Test
+	void quoteIsNotFoundUntilAPriceIsPublished() throws Exception {
+		mockMvc.perform(get("/api/v1/markets/ETH-USDT/quote")).andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/markets/DOGE-USDT/quote")).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void adminPublishesQuotesAndEveryoneReadsTheLatest() throws Exception {
+		var admin = new UserEntity();
+		admin.setEmail("market-admin@example.com");
+		admin.setPassword("existing-password-hash");
+		admin.setRole(RoleType.ADMIN);
+		admin = userRepository.saveAndFlush(admin);
+
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"price":"65000.5"}
+						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.price").value("65000.50"))
+				.andExpect(jsonPath("$.version").value(1));
+		// a JSON number works too
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"price":65100.25}
+						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.version").value(2));
+
+		// public read, no token: the newest quote is the current price
+		mockMvc.perform(get("/api/v1/markets/BTC-USDT/quote")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.symbol").value("BTC-USDT")).andExpect(jsonPath("$.price").value("65100.25"))
+				.andExpect(jsonPath("$.version").value(2)).andExpect(jsonPath("$.timestamp").exists());
+	}
+
+	@Test
+	void invalidQuotesAreRejectedAndNormalUsersCannotPublish() throws Exception {
+		var admin = new UserEntity();
+		admin.setEmail("market-admin-2@example.com");
+		admin.setPassword("existing-password-hash");
+		admin.setRole(RoleType.ADMIN);
+		admin = userRepository.saveAndFlush(admin);
+		var normalUser = new UserEntity();
+		normalUser.setEmail("market-user@example.com");
+		normalUser.setPassword("existing-password-hash");
+		normalUser = userRepository.saveAndFlush(normalUser);
+
+		for (var badBody : new String[]{"""
+				{"price":"0"}""", """
+				{"price":"-5"}""", """
+				{"price":"1.005"}""", """
+				{}""", """
+				{"price":"abc"}"""}) {
+			mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+					.contentType(MediaType.APPLICATION_JSON).content(badBody)).andExpect(status().isBadRequest());
+		}
+		mockMvc.perform(post("/api/v1/admin/markets/DOGE-USDT/quotes").with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("""
+						{"price":"1"}
+						""")).andExpect(status().isNotFound());
+
+		var validBody = """
+				{"price":"1"}
+				""";
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(normalUser))
+				.contentType(MediaType.APPLICATION_JSON).content(validBody)).andExpect(status().isForbidden());
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").contentType(MediaType.APPLICATION_JSON)
+				.content(validBody)).andExpect(status().isUnauthorized());
+
+		// a normal user is denied before the body is read: 403 even for a broken body
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(normalUser))
+				.contentType(MediaType.APPLICATION_JSON).content("{not json")).andExpect(status().isForbidden());
+		// absurd exponent must be a clean 400, not an error or a hang
+		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"price\":1E+2147483647}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void publicMarketRoutesIgnoreStaleTokensButOtherMarketRoutesStayPrivate() throws Exception {
+		mockMvc.perform(get("/api/v1/markets").header("Authorization", "Bearer stale-token"))
+				.andExpect(status().isOk());
+		mockMvc.perform(get("/api/v1/markets/BTC-USDT/quote").header("Authorization", "Bearer stale-token"))
+				.andExpect(status().is(org.hamcrest.Matchers.not(401)));
+		// only the listed routes are public
+		mockMvc.perform(get("/api/v1/markets/BTC-USDT/orders")).andExpect(status().isUnauthorized());
 	}
 }
