@@ -4,21 +4,21 @@ import org.springframework.stereotype.Component;
 
 import trading.demo.model.dto.marketDto.MarketResponse;
 import trading.demo.model.dto.marketDto.QuoteResponse;
-import trading.demo.model.entity.InstrumentEntity;
+import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
 
 @Component
 public class MarketMapper {
-	public MarketResponse toMarketResponse(InstrumentEntity instrument) {
+	public MarketResponse toMarketResponse(MarketEntity market) {
 		// DB keeps 18 decimals; strip zeros to show "0.00000001"
-		var quantityIncrement = instrument.getQuantityIncrement().stripTrailingZeros().toPlainString();
-		var priceIncrement = instrument.getPriceIncrement().stripTrailingZeros().toPlainString();
-		return new MarketResponse(instrument.getSymbol(), instrument.getBaseAsset().getSymbol(),
-				instrument.getQuoteAsset().getSymbol(), instrument.getStatus(), quantityIncrement, priceIncrement);
+		var quantityIncrement = market.getMinQuantityStep().stripTrailingZeros().toPlainString();
+		var priceIncrement = market.getMinPriceStep().stripTrailingZeros().toPlainString();
+		return new MarketResponse(market.getSymbol(), market.getBaseAsset().getSymbol(),
+				market.getQuoteAsset().getSymbol(), market.getStatus(), quantityIncrement, priceIncrement);
 	}
 
 	public QuoteResponse toQuoteResponse(QuoteEntity quote) {
-		return new QuoteResponse(quote.getInstrument().getSymbol(), quote.getPrice().toPlainString(),
-				quote.getVersion(), quote.getCreatedAt());
+		return new QuoteResponse(quote.getMarket().getSymbol(), quote.getPrice().toPlainString(), quote.getVersion(),
+				quote.getCreatedAt());
 	}
 }

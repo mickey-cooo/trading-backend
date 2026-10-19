@@ -13,20 +13,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import trading.demo.model.entity.InstrumentEntity;
+import trading.demo.model.entity.MarketEntity;
 
 @Repository
-public interface InstrumentRepository extends JpaRepository<InstrumentEntity, UUID> {
+public interface MarketRepository extends JpaRepository<MarketEntity, UUID> {
 	boolean existsBySymbol(String symbol);
 
-	Optional<InstrumentEntity> findBySymbol(String symbol);
+	Optional<MarketEntity> findBySymbol(String symbol);
 
 	// fetch both assets in one query, not 1 + 2N queries
 	@EntityGraph(attributePaths = {"baseAsset", "quoteAsset"})
-	List<InstrumentEntity> findAllByOrderBySymbolAsc();
+	List<MarketEntity> findAllByOrderBySymbolAsc();
 
 	// row lock: two publishes cannot pick the same version
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("select i from InstrumentEntity i where i.symbol = :symbol")
-	Optional<InstrumentEntity> findBySymbolForUpdate(@Param("symbol") String symbol);
+	@Query("select m from MarketEntity m where m.symbol = :symbol")
+	Optional<MarketEntity> findBySymbolLockedForWrite(@Param("symbol") String symbol);
 }

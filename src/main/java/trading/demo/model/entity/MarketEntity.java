@@ -18,8 +18,8 @@ import trading.demo.model.enums.Common;
 @Entity
 @Getter
 @Setter
-@Table(name = "instruments")
-public class InstrumentEntity extends TemplateEntity {
+@Table(name = "markets")
+public class MarketEntity extends TemplateEntity {
 
 	// "BTC-USDT"
 	@Column(nullable = false, unique = true, length = 41)
@@ -39,10 +39,10 @@ public class InstrumentEntity extends TemplateEntity {
 	private Common status = Common.ACTIVE;
 
 	// smallest quantity step (enforced when orders arrive)
-	@Column(name = "quantity_increment", nullable = false, precision = 38, scale = 18)
-	private BigDecimal quantityIncrement;
+	@Column(name = "min_quantity_step", nullable = false, precision = 38, scale = 18)
+	private BigDecimal minQuantityStep;
 
 	// smallest step a price can move by (stored now, enforced when orders arrive)
-	@Column(name = "price_increment", nullable = false, precision = 38, scale = 18)
-	private BigDecimal priceIncrement;
+	@Column(name = "min_price_step", nullable = false, precision = 38, scale = 18)
+	private BigDecimal minPriceStep;
 }

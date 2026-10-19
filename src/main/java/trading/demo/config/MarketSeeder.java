@@ -6,22 +6,22 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import trading.demo.model.entity.AssetEntity;
-import trading.demo.model.entity.InstrumentEntity;
+import trading.demo.model.entity.MarketEntity;
 import trading.demo.repository.AssetRepository;
-import trading.demo.repository.InstrumentRepository;
+import trading.demo.repository.MarketRepository;
 
 // On startup, creates missing assets and pairs. Safe to rerun.
 @Component
 public class MarketSeeder implements ApplicationRunner {
-	private static final BigDecimal QUANTITY_INCREMENT = new BigDecimal("0.00000001"); // 8 decimals
-	private static final BigDecimal PRICE_INCREMENT = new BigDecimal("0.01"); // 2 decimals
+	private static final BigDecimal MIN_QUANTITY_STEP = new BigDecimal("0.00000001"); // 8 decimals
+	private static final BigDecimal MIN_PRICE_STEP = new BigDecimal("0.01"); // 2 decimals
 
 	private final AssetRepository assetRepository;
-	private final InstrumentRepository instrumentRepository;
+	private final MarketRepository marketRepository;
 
-	public MarketSeeder(AssetRepository assetRepository, InstrumentRepository instrumentRepository) {
+	public MarketSeeder(AssetRepository assetRepository, MarketRepository marketRepository) {
 		this.assetRepository = assetRepository;
-		this.instrumentRepository = instrumentRepository;
+		this.marketRepository = marketRepository;
 	}
 
 	@Override
@@ -30,8 +30,8 @@ public class MarketSeeder implements ApplicationRunner {
 		var ether = createAssetIfMissing("ETH", "Ether");
 		var tether = createAssetIfMissing("USDT", "Tether");
 
-		createInstrumentIfMissing(bitcoin, tether);
-		createInstrumentIfMissing(ether, tether);
+		createMarketIfMissing(bitcoin, tether);
+		createMarketIfMissing(ether, tether);
 	}
 
 	private AssetEntity createAssetIfMissing(String symbol, String name) {
@@ -43,17 +43,17 @@ public class MarketSeeder implements ApplicationRunner {
 		});
 	}
 
-	private void createInstrumentIfMissing(AssetEntity baseAsset, AssetEntity quoteAsset) {
+	private void createMarketIfMissing(AssetEntity baseAsset, AssetEntity quoteAsset) {
 		var symbol = baseAsset.getSymbol() + "-" + quoteAsset.getSymbol();
-		if (instrumentRepository.existsBySymbol(symbol)) {
+		if (marketRepository.existsBySymbol(symbol)) {
 			return;
 		}
-		var instrument = new InstrumentEntity();
-		instrument.setSymbol(symbol);
-		instrument.setBaseAsset(baseAsset);
-		instrument.setQuoteAsset(quoteAsset);
-		instrument.setQuantityIncrement(QUANTITY_INCREMENT);
-		instrument.setPriceIncrement(PRICE_INCREMENT);
-		instrumentRepository.save(instrument);
+		var market = new MarketEntity();
+		market.setSymbol(symbol);
+		market.setBaseAsset(baseAsset);
+		market.setQuoteAsset(quoteAsset);
+		market.setMinQuantityStep(MIN_QUANTITY_STEP);
+		market.setMinPriceStep(MIN_PRICE_STEP);
+		marketRepository.save(market);
 	}
 }

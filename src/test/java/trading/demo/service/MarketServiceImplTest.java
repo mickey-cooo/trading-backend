@@ -20,34 +20,34 @@ import org.mockito.ArgumentCaptor;
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.exception.ValidationException;
 import trading.demo.mapper.MarketMapper;
-import trading.demo.model.entity.InstrumentEntity;
+import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
-import trading.demo.repository.InstrumentRepository;
+import trading.demo.repository.MarketRepository;
 import trading.demo.repository.QuoteRepository;
 
 class MarketServiceImplTest {
-	private InstrumentRepository instrumentRepository;
+	private MarketRepository marketRepository;
 	private QuoteRepository quoteRepository;
 	private MarketServiceImpl marketService;
-	private InstrumentEntity bitcoinTetherPair;
+	private MarketEntity bitcoinTetherPair;
 
 	@BeforeEach
 	void setUp() {
-		instrumentRepository = mock(InstrumentRepository.class);
+		marketRepository = mock(MarketRepository.class);
 		quoteRepository = mock(QuoteRepository.class);
-		marketService = new MarketServiceImpl(instrumentRepository, quoteRepository, new MarketMapper());
+		marketService = new MarketServiceImpl(marketRepository, quoteRepository, new MarketMapper());
 
-		bitcoinTetherPair = new InstrumentEntity();
+		bitcoinTetherPair = new MarketEntity();
 		bitcoinTetherPair.setSymbol("BTC-USDT");
-		when(instrumentRepository.findBySymbolForUpdate("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
-		when(instrumentRepository.findBySymbol("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
+		when(marketRepository.findBySymbolLockedForWrite("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
+		when(marketRepository.findBySymbol("BTC-USDT")).thenReturn(Optional.of(bitcoinTetherPair));
 		// save() hands back the quote it was given, like the real repository
 		when(quoteRepository.save(any(QuoteEntity.class))).thenAnswer(call -> call.getArgument(0));
 	}
 
 	@Test
 	void firstQuoteGetsVersionOne() {
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
 
 		var response = marketService.publishQuote("BTC-USDT", new BigDecimal("65000.50"));
 
@@ -60,8 +60,7 @@ class MarketServiceImplTest {
 	void nextQuoteIsLastVersionPlusOne() {
 		var lastQuote = new QuoteEntity();
 		lastQuote.setVersion(41);
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair))
-				.thenReturn(Optional.of(lastQuote));
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.of(lastQuote));
 
 		var response = marketService.publishQuote("BTC-USDT", new BigDecimal("65000.50"));
 
@@ -70,7 +69,7 @@ class MarketServiceImplTest {
 
 	@Test
 	void storesPriceWithExactlyTwoDecimals() {
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
 
 		marketService.publishQuote("BTC-USDT", new BigDecimal("65000.500")); // trailing zero is not a 3rd decimal
 		marketService.publishQuote("BTC-USDT", new BigDecimal("7")); // whole number
@@ -101,7 +100,7 @@ class MarketServiceImplTest {
 
 	@Test
 	void symbolIsMatchedIgnoringCaseAndSpaces() {
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
 
 		var response = marketService.publishQuote("  btc-usdt ", new BigDecimal("1"));
 
@@ -110,8 +109,8 @@ class MarketServiceImplTest {
 
 	@Test
 	void unknownSymbolIsNotFound() {
-		when(instrumentRepository.findBySymbolForUpdate("DOGE-USDT")).thenReturn(Optional.empty());
-		when(instrumentRepository.findBySymbol("DOGE-USDT")).thenReturn(Optional.empty());
+		when(marketRepository.findBySymbolLockedForWrite("DOGE-USDT")).thenReturn(Optional.empty());
+		when(marketRepository.findBySymbol("DOGE-USDT")).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class,
 				() -> marketService.publishQuote("DOGE-USDT", new BigDecimal("1")));
@@ -120,7 +119,7 @@ class MarketServiceImplTest {
 
 	@Test
 	void currentQuoteIsNotFoundBeforeAnyPriceIsPublished() {
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class, () -> marketService.getCurrentQuote("BTC-USDT"));
 	}
@@ -128,10 +127,10 @@ class MarketServiceImplTest {
 	@Test
 	void currentQuoteIsTheHighestVersion() {
 		var latestQuote = new QuoteEntity();
-		latestQuote.setInstrument(bitcoinTetherPair);
+		latestQuote.setMarket(bitcoinTetherPair);
 		latestQuote.setPrice(new BigDecimal("65000.50"));
 		latestQuote.setVersion(7);
-		when(quoteRepository.findFirstByInstrumentOrderByVersionDesc(bitcoinTetherPair))
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair))
 				.thenReturn(Optional.of(latestQuote));
 
 		var response = marketService.getCurrentQuote("BTC-USDT");
