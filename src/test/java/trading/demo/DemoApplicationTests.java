@@ -87,6 +87,9 @@ class DemoApplicationTests {
 		registry.add("spring.datasource.username", () -> System.getenv("TEST_DATABASE_USERNAME"));
 		registry.add("spring.datasource.password", () -> System.getenv("TEST_DATABASE_PASSWORD"));
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+		// tests call matchOpenOrders() themselves, so the one-second job must not race
+		// them
+		registry.add("app.matcher.enabled", () -> "false");
 		registry.add("security.jwt.secret-key", () -> Base64.getEncoder().encodeToString(new byte[32]));
 	}
 
@@ -544,7 +547,7 @@ class DemoApplicationTests {
 	void concurrentRetriesOfOneKeyMakeOneOrder() throws Exception {
 		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
 		var owner = newUser("trader-5@example.com");
-		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("1"));
+		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("1"), null);
 
 		var ids = runTogether(6, () -> orderService.submit(owner.getId(), "same-key", request).id());
 
@@ -556,7 +559,7 @@ class DemoApplicationTests {
 	void concurrentOrdersCannotSpendMoreThanTheUserHas() throws Exception {
 		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
 		var owner = newUser("trader-6@example.com");
-		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("60"));
+		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("60"), null);
 		var counter = new java.util.concurrent.atomic.AtomicInteger();
 
 		// two different orders of 6,000 USDT from 10,000: exactly one fits
@@ -572,5 +575,162 @@ class DemoApplicationTests {
 		assertEquals(1, filled.stream().filter(done -> done).count());
 		assertEquals("4000.000000000000000000", balance(owner, 2, "available"));
 		assertEquals(1, orderService.list(owner.getId(), 0, 20).getTotalElements());
+	}
+
+	// Limit orders and cancel
+	private static String limitOrder(String side, String quantity, String limitPrice) {
+		return "{\"symbol\":\"BTC-USDT\",\"side\":\"" + side + "\",\"type\":\"LIMIT\",\"quantity\":\"" + quantity
+				+ "\",\"limitPrice\":\"" + limitPrice + "\"}";
+	}
+
+	private String placeOrder(UserEntity owner, String key, String body, int expectedStatus) throws Exception {
+		var result = mockMvc
+				.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", key)
+						.contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().is(expectedStatus)).andReturn();
+		return expectedStatus == 201 ? JsonPath.read(result.getResponse().getContentAsString(), "$.id") : null;
+	}
+
+	@Test
+	void limitBuyReservesFundsAndCancelReleasesThemOnce() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("limit-1@example.com");
+
+		// price is 100, limit is 90: not reached, so the order waits and 90 USDT is
+		// held back
+		var orderId = placeOrder(owner, "l-1", limitOrder("BUY", "1", "90"), 201);
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
+				.andExpect(jsonPath("$.status").value("OPEN")).andExpect(jsonPath("$.type").value("LIMIT"))
+				.andExpect(jsonPath("$.limitPrice").value("90.00"));
+		assertEquals("9910.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("90.000000000000000000", balance(owner, 2, "reserved"));
+		// a retry of the same request does not reserve twice
+		placeOrder(owner, "l-1", limitOrder("BUY", "1", "90.0"), 201);
+		assertEquals("90.000000000000000000", balance(owner, 2, "reserved"));
+		// another user cannot cancel it, and is told nothing exists
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).with(user(newUser("limit-other@example.com"))))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CANCELLED"));
+		assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		// cancelling again gives the same order and releases nothing more
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(orderId)).andExpect(jsonPath("$.status").value("CANCELLED"));
+		assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		mockMvc.perform(get("/api/v1/trades").with(user(owner))).andExpect(jsonPath("$.content.length()").value(0));
+	}
+
+	@Test
+	void limitOrderThatIsAlreadyReachedFillsAtTheQuoteAndRefundsTheRest() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("limit-2@example.com");
+
+		var orderId = placeOrder(owner, "l-2", limitOrder("BUY", "2", "110"), 201);
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
+				.andExpect(jsonPath("$.status").value("FILLED"));
+		// paid 2 x 100, not 2 x 110; nothing stays reserved
+		assertEquals("9800.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		assertEquals("2.000000000000000000", balance(owner, 0, "available"));
+		mockMvc.perform(get("/api/v1/trades").with(user(owner)))
+				.andExpect(jsonPath("$.content[0].price").value("100.00"));
+		// a filled order cannot be cancelled
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).with(user(owner))).andExpect(status().isConflict());
+	}
+
+	@Test
+	void theMatchingJobFillsOrdersWhenThePriceArrivesAndSellsWorkToo() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("limit-3@example.com");
+		placeOrder(owner, "b-1", order("BTC-USDT", "BUY", "2"), 201);
+		var buyId = placeOrder(owner, "l-3", limitOrder("BUY", "1", "90"), 201);
+		var sellId = placeOrder(owner, "l-4", limitOrder("SELL", "1", "120"), 201);
+		// a sell holds the coin: 2 owned, 1 held back
+		assertEquals("1.000000000000000000", balance(owner, 0, "available"));
+		assertEquals("1.000000000000000000", balance(owner, 0, "reserved"));
+
+		// nothing has been reached yet
+		orderService.matchOpenOrders();
+		assertEquals("OPEN", orderService.get(owner.getId(), java.util.UUID.fromString(buyId)).status().name());
+
+		marketService.publishQuote("BTC-USDT", new BigDecimal("85"));
+		orderService.matchOpenOrders();
+		assertEquals("FILLED", orderService.get(owner.getId(), java.util.UUID.fromString(buyId)).status().name());
+		assertEquals("OPEN", orderService.get(owner.getId(), java.util.UUID.fromString(sellId)).status().name());
+		// filled at 85, not 90: 5 of the reserve came back
+		assertEquals("9715.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		assertEquals("2.000000000000000000", balance(owner, 0, "available"));
+
+		marketService.publishQuote("BTC-USDT", new BigDecimal("125"));
+		orderService.matchOpenOrders();
+		assertEquals("FILLED", orderService.get(owner.getId(), java.util.UUID.fromString(sellId)).status().name());
+		assertEquals("9840.000000000000000000", balance(owner, 2, "available"));
+		// bought 2, then 1 more, then sold 1
+		assertEquals("2.000000000000000000", balance(owner, 0, "available"));
+		assertEquals("0.000000000000000000", balance(owner, 0, "reserved"));
+		// running the job again changes nothing
+		orderService.matchOpenOrders();
+		assertEquals("9840.000000000000000000", balance(owner, 2, "available"));
+	}
+
+	@Test
+	void limitOrdersAreCheckedAndNeverLeaveReservesBehindWhenTheyFail() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("limit-4@example.com");
+
+		// 200 x 90 = 18,000 USDT is more than the 10,000 held
+		placeOrder(owner, "x-1", limitOrder("BUY", "200", "90"), 422);
+		placeOrder(owner, "x-2", limitOrder("SELL", "1", "120"), 422);
+		assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		mockMvc.perform(get("/api/v1/orders").with(user(owner))).andExpect(jsonPath("$.content.length()").value(0));
+
+		placeOrder(owner, "x-3", order("BTC-USDT", "BUY", "1").replace("MARKET", "LIMIT"), 400);
+		placeOrder(owner, "x-4", limitOrder("BUY", "1", "90.123"), 400);
+		placeOrder(owner, "x-5", limitOrder("BUY", "1", "0"), 400);
+		placeOrder(owner, "x-6", order("BTC-USDT", "BUY", "1").replace("}", ",\"limitPrice\":\"90\"}"), 400);
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", java.util.UUID.randomUUID()).with(user(owner)))
+				.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/orders/{id}/cancel", java.util.UUID.randomUUID()))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void cancelAndFillAtTheSameTimeGiveExactlyOneResult() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("limit-5@example.com");
+		var orderId = java.util.UUID.fromString(placeOrder(owner, "r-1", limitOrder("BUY", "1", "90"), 201));
+		marketService.publishQuote("BTC-USDT", new BigDecimal("80"));
+
+		var turn = new java.util.concurrent.atomic.AtomicInteger();
+		var results = runTogether(2, () -> {
+			try {
+				// one thread runs the job, the other cancels
+				if (turn.getAndIncrement() == 0) {
+					orderService.matchOpenOrders();
+					return "match";
+				}
+				return orderService.cancel(owner.getId(), orderId).status().name();
+			} catch (RuntimeException e) {
+				return e.getClass().getSimpleName();
+			}
+		});
+
+		var finalStatus = orderService.get(owner.getId(), orderId).status().name();
+		// whichever won, the reserve is gone, and the money is either all back or spent
+		// at 80
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		if (finalStatus.equals("CANCELLED")) {
+			assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+			assertEquals("0.000000000000000000", balance(owner, 0, "available"));
+		} else {
+			assertEquals("FILLED", finalStatus);
+			assertEquals("9920.000000000000000000", balance(owner, 2, "available"));
+			assertEquals("1.000000000000000000", balance(owner, 0, "available"));
+		}
+		assertEquals(2, results.size());
 	}
 }
