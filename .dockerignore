@@ -1,0 +1,12 @@
+# .env holds secrets: must never enter the build context or an image layer
+.env
+.git
+.github
+.claude
+.vscode
+docs
+scripts
+target
+*.md
+docker-compose.y*ml
+dockerfile
