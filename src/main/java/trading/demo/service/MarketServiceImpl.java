@@ -20,6 +20,7 @@ import trading.demo.model.dto.marketDto.QuoteResponse;
 import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.QuoteEntity;
 import trading.demo.model.enums.CandleInterval;
+import trading.demo.model.enums.Common;
 import trading.demo.repository.MarketRepository;
 import trading.demo.repository.QuoteRepository;
 
@@ -89,6 +90,19 @@ public class MarketServiceImpl implements MarketService {
 		// query returns newest first; charts want oldest first
 		Collections.reverse(candles);
 		return candles;
+	}
+
+	@Override
+	@Transactional
+	public MarketResponse changeStatus(String pair, Common status) {
+		if (status != Common.ACTIVE && status != Common.SUSPENDED) {
+			throw new ValidationException("A market can only be ACTIVE or SUSPENDED");
+		}
+		// same lock as orders and fills, so the switch waits for any order being placed
+		var market = marketRepository.findByPairLockedForWrite(normalizePair(pair))
+				.orElseThrow(MarketServiceImpl::marketNotFound);
+		market.setStatus(status);
+		return marketMapper.toMarketResponse(market);
 	}
 
 	@Override

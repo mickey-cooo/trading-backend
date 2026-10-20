@@ -24,6 +24,7 @@ import trading.demo.model.dto.orderDto.OrderResponse;
 import trading.demo.model.dto.orderDto.SubmitOrderRequest;
 import trading.demo.model.dto.orderDto.TradeResponse;
 import trading.demo.model.entity.UserEntity;
+import trading.demo.model.enums.OrderStatus;
 import trading.demo.service.OrderService;
 
 // The caller's own orders and fills: the user always comes from the token, never the URL.
@@ -46,12 +47,12 @@ public class OrderController {
 		return orderService.submit(me.getId(), idempotencyKey, request);
 	}
 
-	// newest first; size 1-100, default 20
+	// newest first; size 1-100, default 20; ?status=OPEN shows only open orders
 	@GetMapping("/orders")
 	public PagedModel<OrderResponse> list(@AuthenticationPrincipal UserEntity me,
-			@RequestParam(defaultValue = "0") @Min(0) int page,
+			@RequestParam(required = false) OrderStatus status, @RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-		return new PagedModel<>(orderService.list(me.getId(), page, size));
+		return new PagedModel<>(orderService.list(me.getId(), status, page, size));
 	}
 
 	@GetMapping("/orders/{id}")

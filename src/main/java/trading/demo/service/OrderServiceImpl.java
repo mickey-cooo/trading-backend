@@ -28,6 +28,7 @@ import trading.demo.model.entity.ExecutionEntity;
 import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.OrderEntity;
 import trading.demo.model.entity.QuoteEntity;
+import trading.demo.model.entity.UserEntity;
 import trading.demo.model.enums.BalanceBucket;
 import trading.demo.model.enums.Common;
 import trading.demo.model.enums.LedgerType;
@@ -108,6 +109,10 @@ public class OrderServiceImpl implements OrderService {
 		if (market.getStatus() != Common.ACTIVE) {
 			throw new ConflictException("Market is closed");
 		}
+		// an admin may have suspended the user after the request passed the login check
+		if (!userRepository.findById(userId).map(UserEntity::isEnabled).orElse(false)) {
+			throw new ConflictException("Account is suspended");
+		}
 		var quote = quoteRepository.findFirstByMarketOrderByVersionDesc(market);
 		var isMarketOrder = request.type() == OrderType.MARKET;
 		if (isMarketOrder && quote.isEmpty()) {
@@ -163,6 +168,28 @@ public class OrderServiceImpl implements OrderService {
 		});
 	}
 
+	@Override
+	public int cancelOpenOrders(UUID userId) {
+		return transaction.execute(status -> {
+			var pairs = orderRepository.findOpenPairsByUserId(userId);
+			if (pairs.isEmpty()) {
+				return 0;
+			}
+			// the account already exists: these orders could not be placed without it
+			var account = ledgerService.findOrOpen(userId);
+			// markets first, in sorted order, then the balances inside post()
+			pairs.forEach(this::lockMarket);
+			// read after the locks: a fill may have changed an order since the first read
+			var openOrders = orderRepository.findByUserIdAndStatus(userId, OrderStatus.OPEN);
+			for (var order : openOrders) {
+				order.setStatus(OrderStatus.CANCELLED);
+				// same reference as cancel(), so a reserve is never released twice
+				ledgerService.post("release:" + order.getId(), LedgerType.RELEASE, moveReserve(account, order, false));
+			}
+			return openOrders.size();
+		});
+	}
+
 	// shortcut: reads every open order each second; add a price filter in the query
 	// when there are many
 	@Override
@@ -187,6 +214,10 @@ public class OrderServiceImpl implements OrderService {
 		if (found.isEmpty() || found.get().getStatus() != OrderStatus.OPEN) {
 			return;
 		}
+		// a suspended market has no fills; skipping here keeps its lock free
+		if (found.get().getMarket().getStatus() != Common.ACTIVE) {
+			return;
+		}
 		var pair = found.get().getMarket().getPair();
 		// cheap check without the lock: most open orders have not reached their price,
 		// and they must not
@@ -200,7 +231,9 @@ public class OrderServiceImpl implements OrderService {
 			var market = lockMarket(pair);
 			// read again after the lock: the user may have cancelled in the meantime
 			var order = orderRepository.findWithMarketById(orderId).orElseThrow();
-			if (order.getStatus() != OrderStatus.OPEN || market.getStatus() != Common.ACTIVE) {
+			// a suspended user's order waits, with its reserve, until they are active again
+			if (order.getStatus() != OrderStatus.OPEN || market.getStatus() != Common.ACTIVE
+					|| !order.getUser().isEnabled()) {
 				return;
 			}
 			quoteRepository.findFirstByMarketOrderByVersionDesc(market)
@@ -311,8 +344,12 @@ public class OrderServiceImpl implements OrderService {
 	}
 
 	@Override
-	public Page<OrderResponse> list(UUID userId, int page, int size) {
-		return orderRepository.findByUserId(userId, newestFirst(page, size)).map(orderMapper::toOrderResponse);
+	public Page<OrderResponse> list(UUID userId, OrderStatus status, int page, int size) {
+		var pageRequest = newestFirst(page, size);
+		var orders = status == null
+				? orderRepository.findByUserId(userId, pageRequest)
+				: orderRepository.findByUserIdAndStatus(userId, status, pageRequest);
+		return orders.map(orderMapper::toOrderResponse);
 	}
 
 	@Override

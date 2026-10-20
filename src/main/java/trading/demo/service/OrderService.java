@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import trading.demo.model.dto.orderDto.OrderResponse;
 import trading.demo.model.dto.orderDto.SubmitOrderRequest;
 import trading.demo.model.dto.orderDto.TradeResponse;
+import trading.demo.model.enums.OrderStatus;
 
 public interface OrderService {
 	// A market order fills at the current quote. A limit order reserves its funds
@@ -25,9 +26,13 @@ public interface OrderService {
 	// Fills every open limit order whose price has been reached, oldest first.
 	void matchOpenOrders();
 
-	// the caller's orders, newest first; another user's order is a
-	// ResourceNotFoundException
-	Page<OrderResponse> list(UUID userId, int page, int size);
+	// Cancels every open order of the user and gives the reserves back. Joins the
+	// caller's transaction, so an admin can suspend the user in the same one.
+	// Returns how many were cancelled.
+	int cancelOpenOrders(UUID userId);
+
+	// the caller's orders, newest first; status null means all of them
+	Page<OrderResponse> list(UUID userId, OrderStatus status, int page, int size);
 
 	OrderResponse get(UUID userId, UUID orderId);
 
