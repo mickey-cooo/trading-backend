@@ -39,6 +39,18 @@ public class GlobalExceptionHandler {
 		return problem(HttpStatus.BAD_REQUEST, "Request validation failed");
 	}
 
+	@ExceptionHandler(ConflictException.class)
+	ResponseEntity<ProblemDetail> handleStateConflict(ConflictException exception) {
+		return problem(HttpStatus.CONFLICT, exception.getMessage());
+	}
+
+	// the artifact leaves this status open; 422 keeps it apart from a malformed
+	// request
+	@ExceptionHandler(InsufficientFundsException.class)
+	ResponseEntity<ProblemDetail> handleInsufficientFunds(InsufficientFundsException exception) {
+		return problem(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage());
+	}
+
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ResponseEntity<ProblemDetail> handleUnreadableBody() {
 		return problem(HttpStatus.BAD_REQUEST, "Malformed or unsupported request body");
