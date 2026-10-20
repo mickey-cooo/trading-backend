@@ -9,7 +9,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
@@ -21,9 +26,26 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import trading.demo.exception.InsufficientFundsException;
+import trading.demo.model.dto.orderDto.SubmitOrderRequest;
+import trading.demo.model.enums.Common;
+import trading.demo.model.enums.OrderSide;
+import trading.demo.model.enums.OrderType;
+import trading.demo.model.entity.JournalEntryEntity;
 import trading.demo.model.entity.UserEntity;
+import trading.demo.model.enums.BalanceBucket;
+import trading.demo.model.enums.LedgerType;
 import trading.demo.model.enums.RoleType;
+import trading.demo.repository.AccountRepository;
+import trading.demo.repository.AssetRepository;
+import trading.demo.repository.BalanceRepository;
+import trading.demo.repository.JournalEntryRepository;
+import trading.demo.repository.MarketRepository;
 import trading.demo.repository.UserRepository;
+import trading.demo.service.LedgerService;
+import trading.demo.service.MarketService;
+import trading.demo.service.OrderService;
+import trading.demo.service.LedgerService.Leg;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,6 +56,30 @@ class DemoApplicationTests {
 
 	@Autowired
 	private UserRepository userRepository;
+
+	@Autowired
+	private LedgerService ledgerService;
+
+	@Autowired
+	private BalanceRepository balanceRepository;
+
+	@Autowired
+	private JournalEntryRepository journalRepository;
+
+	@Autowired
+	private AssetRepository assetRepository;
+
+	@Autowired
+	private AccountRepository accountRepository;
+
+	@Autowired
+	private OrderService orderService;
+
+	@Autowired
+	private MarketService marketService;
+
+	@Autowired
+	private MarketRepository marketRepository;
 
 	@DynamicPropertySource
 	static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -161,21 +207,25 @@ class DemoApplicationTests {
 		admin.setRole(RoleType.ADMIN);
 		admin = userRepository.saveAndFlush(admin);
 
-		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
-				.contentType(MediaType.APPLICATION_JSON).content("""
-						{"price":"65000.5"}
-						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.price").value("65000.50"))
-				.andExpect(jsonPath("$.version").value(1));
+		var first = mockMvc
+				.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+						.contentType(MediaType.APPLICATION_JSON).content("""
+								{"price":"65000.5"}
+								"""))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.price").value("65000.50")).andReturn();
+		// other tests also publish BTC-USDT prices, so versions are compared, not
+		// hard-coded
+		int firstVersion = JsonPath.read(first.getResponse().getContentAsString(), "$.version");
 		// a JSON number works too
 		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
 				.contentType(MediaType.APPLICATION_JSON).content("""
 						{"price":65100.25}
-						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.version").value(2));
+						""")).andExpect(status().isCreated()).andExpect(jsonPath("$.version").value(firstVersion + 1));
 
 		// public read, no token: the newest quote is the current price
 		mockMvc.perform(get("/api/v1/markets/BTC-USDT/quote")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.pair").value("BTC-USDT")).andExpect(jsonPath("$.price").value("65100.25"))
-				.andExpect(jsonPath("$.version").value(2)).andExpect(jsonPath("$.timestamp").exists());
+				.andExpect(jsonPath("$.version").value(firstVersion + 1)).andExpect(jsonPath("$.timestamp").exists());
 	}
 
 	@Test
@@ -229,5 +279,298 @@ class DemoApplicationTests {
 				.andExpect(status().is(org.hamcrest.Matchers.not(401)));
 		// only the listed routes are public
 		mockMvc.perform(get("/api/v1/markets/BTC-USDT/orders")).andExpect(status().isUnauthorized());
+	}
+
+	// Paper accounts and ledger: the first call opens the account and grants 10,000
+	// USDT, once.
+	private UserEntity newUser(String email) {
+		var user = new UserEntity();
+		user.setEmail(email);
+		user.setPassword("existing-password-hash");
+		return userRepository.saveAndFlush(user);
+	}
+
+	@Test
+	void balancesAndLedgerOpenTheAccountWithOneFunding() throws Exception {
+		var owner = newUser("wallet-owner@example.com");
+
+		for (int call = 0; call < 2; call++) {
+			mockMvc.perform(get("/api/v1/accounts/me/balances").with(user(owner))).andExpect(status().isOk())
+					.andExpect(jsonPath("$.length()").value(3)).andExpect(jsonPath("$[0].asset").value("BTC"))
+					.andExpect(jsonPath("$[0].available").value("0.000000000000000000"))
+					.andExpect(jsonPath("$[2].asset").value("USDT"))
+					.andExpect(jsonPath("$[2].available").value("10000.000000000000000000"))
+					.andExpect(jsonPath("$[2].reserved").value("0.000000000000000000"));
+		}
+		mockMvc.perform(get("/api/v1/accounts/me/ledger").with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].type").value("FUNDING"))
+				.andExpect(jsonPath("$.content[0].asset").value("USDT"))
+				.andExpect(jsonPath("$.content[0].amount").value("10000.000000000000000000"))
+				.andExpect(jsonPath("$.content[0].reference").exists())
+				.andExpect(jsonPath("$.page.totalElements").value(1));
+
+		mockMvc.perform(get("/api/v1/accounts/me/ledger").param("size", "101").with(user(owner)))
+				.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/accounts/me/ledger").param("page", "-1").with(user(owner)))
+				.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/accounts/me/balances")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/v1/accounts/me/ledger")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void concurrentFirstCallsFundOnlyOnce() throws Exception {
+		var owner = newUser("wallet-race@example.com");
+		var accountIds = runTogether(8, () -> ledgerService.findOrOpen(owner.getId()).getId());
+
+		assertEquals(1, accountIds.stream().distinct().count());
+		var fundings = journalRepository.findAll().stream().filter(
+				line -> line.getAccount().getId().equals(accountIds.get(0)) && line.getType() == LedgerType.FUNDING)
+				.toList();
+		assertEquals(1, fundings.size());
+	}
+
+	@Test
+	void concurrentSpendsCannotGoBelowZero() throws Exception {
+		var owner = newUser("wallet-spender@example.com");
+		var account = ledgerService.findOrOpen(owner.getId());
+		var usdt = assetRepository.findBySymbol("USDT").orElseThrow();
+		var system = accountRepository.findBySystemSlot(true).orElseThrow();
+
+		// two spends of 6,000 from 10,000: exactly one can succeed
+		var results = runTogether(2, () -> {
+			try {
+				return ledgerService.post("spend:" + java.util.UUID.randomUUID(), LedgerType.TRADE,
+						List.of(new Leg(account, usdt, BalanceBucket.AVAILABLE, new BigDecimal("-6000")),
+								new Leg(system, usdt, BalanceBucket.AVAILABLE, new BigDecimal("6000"))));
+			} catch (InsufficientFundsException e) {
+				return false;
+			}
+		});
+
+		assertEquals(1, results.stream().filter(done -> done).count());
+		var balance = balanceRepository.findByAccountIdOrderByAssetSymbolAsc(account.getId()).get(2);
+		assertEquals(0, new BigDecimal("4000").compareTo(balance.getAvailable()));
+	}
+
+	@Test
+	void samePostedReferenceChangesNothingTheSecondTime() {
+		var owner = newUser("wallet-retry@example.com");
+		var account = ledgerService.findOrOpen(owner.getId());
+		var usdt = assetRepository.findBySymbol("USDT").orElseThrow();
+		var reserve = List.of(new Leg(account, usdt, BalanceBucket.AVAILABLE, new BigDecimal("-100")),
+				new Leg(account, usdt, BalanceBucket.RESERVED, new BigDecimal("100")));
+
+		assertEquals(true, ledgerService.post("reserve:retry-1", LedgerType.RESERVE, reserve));
+		assertEquals(false, ledgerService.post("reserve:retry-1", LedgerType.RESERVE, reserve));
+		var balance = balanceRepository.findByAccountIdOrderByAssetSymbolAsc(account.getId()).get(2);
+		assertEquals(0, new BigDecimal("9900").compareTo(balance.getAvailable()));
+		assertEquals(0, new BigDecimal("100").compareTo(balance.getReserved()));
+	}
+
+	@Test
+	void journalReplayGivesTheStoredBalancesAndEveryAssetSumsToZero() {
+		var owner = newUser("wallet-replay@example.com");
+		var account = ledgerService.findOrOpen(owner.getId());
+		var usdt = assetRepository.findBySymbol("USDT").orElseThrow();
+		ledgerService.post("reserve:replay-1", LedgerType.RESERVE,
+				List.of(new Leg(account, usdt, BalanceBucket.AVAILABLE, new BigDecimal("-250.5")),
+						new Leg(account, usdt, BalanceBucket.RESERVED, new BigDecimal("250.5"))));
+
+		var lines = journalRepository.findAll();
+		for (var bucket : BalanceBucket.values()) {
+			var replayed = lines.stream()
+					.filter(line -> line.getAccount().getId().equals(account.getId())
+							&& line.getAsset().getId().equals(usdt.getId()) && line.getBucket() == bucket)
+					.map(JournalEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+			var stored = balanceRepository.findByAccountIdOrderByAssetSymbolAsc(account.getId()).get(2);
+			assertEquals(0, replayed
+					.compareTo(bucket == BalanceBucket.AVAILABLE ? stored.getAvailable() : stored.getReserved()));
+		}
+		var total = lines.stream().filter(line -> line.getAsset().getId().equals(usdt.getId()))
+				.map(JournalEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+		assertEquals(0, total.signum());
+	}
+
+	// runs the task on several threads released at the same moment
+	private <T> List<T> runTogether(int threads, Callable<T> task) throws Exception {
+		var pool = Executors.newFixedThreadPool(threads);
+		try {
+			var ready = new CountDownLatch(threads);
+			var go = new CountDownLatch(1);
+			var futures = new java.util.ArrayList<java.util.concurrent.Future<T>>();
+			for (int i = 0; i < threads; i++) {
+				futures.add(pool.submit(() -> {
+					ready.countDown();
+					go.await();
+					return task.call();
+				}));
+			}
+			ready.await();
+			go.countDown();
+			var out = new java.util.ArrayList<T>();
+			for (var future : futures) {
+				out.add(future.get());
+			}
+			return out;
+		} finally {
+			pool.shutdownNow();
+		}
+	}
+
+	// Market orders: BTC-USDT is priced at 100.00 here so the sums are easy to
+	// check.
+	private static String order(String symbol, String side, String quantity) {
+		return "{\"symbol\":\"" + symbol + "\",\"side\":\"" + side + "\",\"type\":\"MARKET\",\"quantity\":\"" + quantity
+				+ "\"}";
+	}
+
+	private String balance(UserEntity owner, int index, String field) throws Exception {
+		var body = mockMvc.perform(get("/api/v1/accounts/me/balances").with(user(owner))).andReturn().getResponse()
+				.getContentAsString();
+		return JsonPath.read(body, "$[" + index + "]." + field);
+	}
+
+	@Test
+	void marketOrdersMoveMoneyAndRetriesDoNotRepeatThem() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("trader-1@example.com");
+
+		var buy = mockMvc
+				.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "k-1")
+						.contentType(MediaType.APPLICATION_JSON).content(order("btc-usdt", "BUY", "2")))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("FILLED"))
+				.andExpect(jsonPath("$.symbol").value("BTC-USDT")).andExpect(jsonPath("$.quantity").value("2.00000000"))
+				.andReturn();
+		String orderId = JsonPath.read(buy.getResponse().getContentAsString(), "$.id");
+		assertEquals("9800.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("2.000000000000000000", balance(owner, 0, "available"));
+
+		// same key and same request (2.0 is the same number as 2): the first order
+		// comes back, nothing moves again
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "k-1")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "BUY", "2.0")))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(orderId));
+		assertEquals("9800.000000000000000000", balance(owner, 2, "available"));
+		// same key, different request
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "k-1")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "BUY", "3")))
+				.andExpect(status().isConflict());
+
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "k-2")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "SELL", "0.5")))
+				.andExpect(status().isCreated());
+		assertEquals("9850.000000000000000000", balance(owner, 2, "available"));
+		assertEquals("1.500000000000000000", balance(owner, 0, "available"));
+
+		mockMvc.perform(get("/api/v1/orders").with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(2))
+				.andExpect(jsonPath("$.page.totalElements").value(2));
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.side").value("BUY"));
+		mockMvc.perform(get("/api/v1/trades").with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(2))
+				.andExpect(jsonPath("$.content[0].price").value("100.00"))
+				.andExpect(jsonPath("$.content[0].quantity").value("0.50000000"))
+				.andExpect(jsonPath("$.content[0].quoteVersion").isNumber())
+				.andExpect(jsonPath("$.content[1].orderId").value(orderId));
+
+		// another user cannot see it, and the answer does not say it exists
+		var other = newUser("trader-2@example.com");
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(other))).andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/orders").with(user(other))).andExpect(jsonPath("$.content.length()").value(0));
+		mockMvc.perform(get("/api/v1/trades").with(user(other))).andExpect(jsonPath("$.content.length()").value(0));
+	}
+
+	@Test
+	void badOrdersSaveNothing() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("trader-3@example.com");
+
+		// 1,000 BTC costs 100,000 USDT; the user has 10,000
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "big")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "BUY", "1000")))
+				.andExpect(status().isUnprocessableEntity());
+		// no coin to sell
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "short")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "SELL", "1")))
+				.andExpect(status().isUnprocessableEntity());
+		assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		mockMvc.perform(get("/api/v1/orders").with(user(owner))).andExpect(jsonPath("$.content.length()").value(0));
+		// the failed key was rolled back too, so it can be used again
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "big")
+				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "BUY", "1")))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).contentType(MediaType.APPLICATION_JSON)
+				.content(order("BTC-USDT", "BUY", "1"))).andExpect(status().isBadRequest());
+		for (var body : new String[]{order("BTC-USDT", "BUY", "0"), order("BTC-USDT", "BUY", "-1"),
+				order("BTC-USDT", "BUY", "0.123456789"), order("BTC-USDT", "HOLD", "1"),
+				order("BTC-USDT", "BUY", "abc"),
+				"{\"symbol\":\"BTC-USDT\",\"side\":\"BUY\",\"type\":\"LIMIT\",\"quantity\":\"1\"}",
+				"{\"symbol\":\"BTC-USDT\",\"side\":\"BUY\",\"type\":\"MARKET\"}"}) {
+			mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "bad")
+					.contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+		}
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "x")
+				.contentType(MediaType.APPLICATION_JSON).content(order("DOGE-USDT", "BUY", "1")))
+				.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/orders").header("Idempotency-Key", "x").contentType(MediaType.APPLICATION_JSON)
+				.content(order("BTC-USDT", "BUY", "1"))).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void closedMarketAndMissingQuoteRejectOrders() throws Exception {
+		var owner = newUser("trader-4@example.com");
+		// ETH-USDT is never given a quote by the other tests
+		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "e-1")
+				.contentType(MediaType.APPLICATION_JSON).content(order("ETH-USDT", "BUY", "1")))
+				.andExpect(status().isNotFound());
+
+		var eth = marketRepository.findByPair("ETH-USDT").orElseThrow();
+		eth.setStatus(Common.SUSPENDED);
+		marketRepository.saveAndFlush(eth);
+		try {
+			mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "e-2")
+					.contentType(MediaType.APPLICATION_JSON).content(order("ETH-USDT", "BUY", "1")))
+					.andExpect(status().isConflict());
+		} finally {
+			eth.setStatus(Common.ACTIVE);
+			marketRepository.saveAndFlush(eth);
+		}
+	}
+
+	@Test
+	void concurrentRetriesOfOneKeyMakeOneOrder() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("trader-5@example.com");
+		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("1"));
+
+		var ids = runTogether(6, () -> orderService.submit(owner.getId(), "same-key", request).id());
+
+		assertEquals(1, ids.stream().distinct().count());
+		assertEquals("9900.000000000000000000", balance(owner, 2, "available"));
+	}
+
+	@Test
+	void concurrentOrdersCannotSpendMoreThanTheUserHas() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("trader-6@example.com");
+		var request = new SubmitOrderRequest("BTC-USDT", OrderSide.BUY, OrderType.MARKET, new BigDecimal("60"));
+		var counter = new java.util.concurrent.atomic.AtomicInteger();
+
+		// two different orders of 6,000 USDT from 10,000: exactly one fits
+		var filled = runTogether(2, () -> {
+			try {
+				orderService.submit(owner.getId(), "spend-" + counter.incrementAndGet(), request);
+				return true;
+			} catch (InsufficientFundsException e) {
+				return false;
+			}
+		});
+
+		assertEquals(1, filled.stream().filter(done -> done).count());
+		assertEquals("4000.000000000000000000", balance(owner, 2, "available"));
+		assertEquals(1, orderService.list(owner.getId(), 0, 20).getTotalElements());
 	}
 }
