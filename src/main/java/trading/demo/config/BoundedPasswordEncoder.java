@@ -7,8 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
-// Argon2 is memory-hard (16 MiB each) and /login and /register are public: cap how many
-// run at once so a burst cannot exhaust the heap. Excess callers wait briefly, then get 503.
+// Argon2 is memory-hungry and login/register are public, so cap how many run at once; extra callers wait, then get 503.
 public class BoundedPasswordEncoder implements PasswordEncoder {
 	private static final long WAIT_SECONDS = 2;
 

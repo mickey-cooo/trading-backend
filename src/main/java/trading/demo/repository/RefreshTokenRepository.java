@@ -17,9 +17,7 @@ import trading.demo.model.entity.RefreshTokenEntity;
 
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity, UUID> {
-	// row lock: refresh and logout on the same token serialize, so a family revoke
-	// can
-	// never miss a token rotated by a concurrent refresh
+	// row lock: refresh and logout on one token take turns, so a family revoke never misses a rotated token
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<RefreshTokenEntity> findByTokenHash(String tokenHash);
 
@@ -32,9 +30,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
 	@Query("update RefreshTokenEntity t set t.revokedAt = :now where t.familyId = :family and t.revokedAt is null")
 	int revokeFamily(@Param("family") UUID family, @Param("now") Instant now);
 
-	// expired rows only: revoked-but-unexpired rows must stay so replay of a
-	// rotated token
-	// still revokes the family for the whole token lifetime
+	// expired rows only: revoked rows must stay until expiry so a replayed token still revokes its family
 	@Modifying
 	@Query("delete from RefreshTokenEntity t where t.expiresAt < :now")
 	int purgeExpired(@Param("now") Instant now);

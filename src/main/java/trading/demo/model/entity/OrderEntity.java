@@ -48,8 +48,7 @@ public class OrderEntity extends TemplateEntity {
 	@Column(nullable = false, precision = 38, scale = 18)
 	private BigDecimal quantity;
 
-	// only for LIMIT orders: a buy fills at this price or lower, a sell at this
-	// price or higher
+	// only for LIMIT orders: a buy fills at this price or lower, a sell at this price or higher
 	@Column(name = "limit_price", precision = 38, scale = 18)
 	private BigDecimal limitPrice;
 
@@ -60,8 +59,7 @@ public class OrderEntity extends TemplateEntity {
 	@Column(name = "idempotency_key", nullable = false, length = 64)
 	private String idempotencyKey;
 
-	// SHA-256 of the request, to tell a retry from a different request using the
-	// same key
+	// SHA-256 of the request, to tell a retry from a different request using the same key
 	@Column(name = "request_hash", nullable = false, length = 64)
 	private String requestHash;
 }

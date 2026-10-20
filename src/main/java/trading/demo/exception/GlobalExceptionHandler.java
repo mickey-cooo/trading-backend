@@ -44,8 +44,7 @@ public class GlobalExceptionHandler {
 		return problem(HttpStatus.CONFLICT, exception.getMessage());
 	}
 
-	// the artifact leaves this status open; 422 keeps it apart from a malformed
-	// request
+	// the artifact leaves this status open; 422 keeps it apart from a malformed request
 	@ExceptionHandler(InsufficientFundsException.class)
 	ResponseEntity<ProblemDetail> handleInsufficientFunds(InsufficientFundsException exception) {
 		return problem(HttpStatus.UNPROCESSABLE_ENTITY, exception.getMessage());

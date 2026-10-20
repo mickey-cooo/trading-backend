@@ -41,8 +41,7 @@ public class AuthController {
 		return authService.refresh(request.refreshToken());
 	}
 
-	// public on purpose: holding the refresh token is the credential, and the
-	// access token may already be expired
+	// public on purpose: the refresh token is the credential, and the access token may already be expired
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
 		authService.logout(request.refreshToken());

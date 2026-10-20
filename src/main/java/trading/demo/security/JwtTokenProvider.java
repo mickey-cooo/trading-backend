@@ -21,9 +21,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class JwtTokenProvider {
-	// this service never issues compressed tokens; the default resolver would
-	// inflate an
-	// attacker-chosen "zip" payload (unbounded) before the signature is checked
+	// no compressed tokens are issued; the default resolver would inflate an attacker's "zip" payload before the signature check
 	private static final CompressionCodecResolver NO_COMPRESSION = header -> {
 		if (header.getCompressionAlgorithm() != null) {
 			throw new JwtException("compressed tokens are not accepted");

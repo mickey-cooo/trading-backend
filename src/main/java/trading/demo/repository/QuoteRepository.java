@@ -18,9 +18,7 @@ public interface QuoteRepository extends JpaRepository<QuoteEntity, UUID> {
 	// the quote with the highest version is the current price
 	Optional<QuoteEntity> findFirstByMarketOrderByVersionDesc(MarketEntity market);
 
-	// Newest candles first. Quotes are grouped into slots of :seconds; open/close
-	// are the lowest/highest version.
-	// Plain SQL (no date_bin) so it works on any PostgreSQL version.
+	// Newest candles first. Quotes group into :seconds slots; open/close = lowest/highest version. Plain SQL.
 	@Query(value = """
 			SELECT CAST(floor(extract(epoch FROM created_at) / :seconds) * :seconds AS bigint) AS time,
 			       (array_agg(price ORDER BY version))[1] AS open,

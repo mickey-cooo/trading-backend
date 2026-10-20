@@ -21,8 +21,7 @@ public class AccountEntity extends TemplateEntity {
 	@JoinColumn(name = "user_id", unique = true)
 	private UserEntity user;
 
-	// TRUE for the system account, null for users: a unique column allows many
-	// nulls but only one TRUE
+	// TRUE for the system account, null for users: a unique column allows many nulls but only one TRUE
 	@Column(name = "system_slot", unique = true)
 	private Boolean systemSlot;
 

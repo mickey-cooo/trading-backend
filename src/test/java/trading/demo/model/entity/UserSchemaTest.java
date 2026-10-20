@@ -11,10 +11,7 @@ import org.hibernate.cfg.Configuration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
-/**
- * Run with TEST_DATABASE_URL, TEST_DATABASE_USERNAME and
- * TEST_DATABASE_PASSWORD.
- */
+// Run with TEST_DATABASE_URL, TEST_DATABASE_USERNAME and TEST_DATABASE_PASSWORD.
 @EnabledIfEnvironmentVariable(named = "TEST_DATABASE_URL", matches = ".+")
 class UserSchemaTest {
 	@Test

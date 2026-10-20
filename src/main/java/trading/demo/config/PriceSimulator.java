@@ -65,8 +65,7 @@ public class PriceSimulator {
 		marketService.publishQuote(pair, nextPrice(current));
 	}
 
-	// random walk: price x (1 + volatility x bell-curve step), never below one
-	// price step
+	// random walk: price x (1 + volatility x bell-curve step), never below one price step
 	private BigDecimal nextPrice(BigDecimal current) {
 		var factor = BigDecimal.valueOf(1 + properties.volatility() * random.nextGaussian());
 		var next = current.multiply(factor).setScale(marketProperties.priceDecimals(), RoundingMode.HALF_UP);

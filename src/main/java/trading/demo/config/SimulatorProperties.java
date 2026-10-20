@@ -16,8 +16,7 @@ public record SimulatorProperties(boolean enabled,
 		long seed,
 		// size of one tick as a fraction of the price (0.0005 = 0.05%)
 		@DecimalMin("0") @DecimalMax("0.1") double volatility,
-		// price a market starts from when it has no quote yet; markets not listed here
-		// are skipped
+		// price a market starts from when it has no quote yet; markets not listed here are skipped
 		Map<String, BigDecimal> startPrices) {
 
 	public SimulatorProperties {

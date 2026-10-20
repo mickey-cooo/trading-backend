@@ -18,12 +18,10 @@ public interface MarketService {
 	// save a new price; it stays current until the next one
 	QuoteResponse publishQuote(String pair, BigDecimal price);
 
-	// chart candles, oldest first; interval is 1m, 5m or 1h (else
-	// ValidationException)
+	// chart candles, oldest first; interval is 1m, 5m or 1h (else ValidationException)
 	List<CandleResponse> getCandles(String pair, String interval, int limit);
 
-	// Switches a pair on (ACTIVE) or off (SUSPENDED). Any other status is a
-	// ValidationException.
+	// Switches a pair on (ACTIVE) or off (SUSPENDED). Any other status is a ValidationException.
 	MarketResponse changeStatus(String pair, Common status);
 
 	// throws ValidationException unless price is above zero, max 2 decimals

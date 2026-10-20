@@ -12,12 +12,9 @@ import trading.demo.model.enums.Common;
 public interface AdminService {
 	QuoteResponse publishQuote(UUID adminId, String pair, BigDecimal price);
 
-	// ACTIVE or SUSPENDED only. A suspended market takes no new orders and has no
-	// fills; cancel still works.
+	// ACTIVE or SUSPENDED only. A suspended market takes no new orders and no fills; cancel still works.
 	MarketResponse changeMarketStatus(UUID adminId, String pair, Common status);
 
-	// ACTIVE or SUSPENDED only. Suspending cancels the user's open orders and
-	// releases their reserves in the same transaction. An admin cannot change their
-	// own status.
+	// ACTIVE or SUSPENDED only. Suspending cancels open orders and releases reserves in one transaction. Not for yourself.
 	UserResponseDTO changeUserStatus(UUID adminId, UUID userId, Common status);
 }

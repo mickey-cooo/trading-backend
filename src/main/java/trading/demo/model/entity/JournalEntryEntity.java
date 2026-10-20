@@ -18,8 +18,7 @@ import org.hibernate.annotations.Immutable;
 import trading.demo.model.enums.BalanceBucket;
 import trading.demo.model.enums.LedgerType;
 
-// One line of the ledger. Rows are only added, never changed or deleted. Every movement is two or more
-// lines that add up to zero per asset; adding up one account's lines gives its balance.
+// One ledger line, never changed. A movement's lines add up to zero per asset; one account's lines add up to its balance.
 @Entity
 @Immutable
 @Getter
@@ -49,8 +48,7 @@ public class JournalEntryEntity extends TemplateEntity {
 	@Column(nullable = false, length = 20)
 	private LedgerType type;
 
-	// names the movement, e.g. "funding:<accountId>"; posting the same one twice
-	// does nothing
+	// names the movement, e.g. "funding:<accountId>"; posting the same one twice does nothing
 	@Column(nullable = false, length = 100)
 	private String reference;
 }

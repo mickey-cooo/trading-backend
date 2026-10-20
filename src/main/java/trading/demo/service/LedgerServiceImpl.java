@@ -75,8 +75,7 @@ public class LedgerServiceImpl implements LedgerService {
 				account.setUser(userRepository.getReferenceById(userId));
 				// flush now: a second creator for this user fails here, before any money moves
 				accountRepository.saveAndFlush(account);
-				// shortcut: assets added later get no row, post() fails for them; add a
-				// backfill then
+				// shortcut: assets added later get no row, post() fails for them; add a backfill then
 				var assets = assetRepository.findAll();
 				assets.forEach(asset -> {
 					var balance = new BalanceEntity();
@@ -115,13 +114,11 @@ public class LedgerServiceImpl implements LedgerService {
 		requireBalanced(legs);
 		var userAccountIds = legs.stream().map(Leg::account).filter(account -> !account.isSystem())
 				.map(AccountEntity::getId).distinct().toList();
-		// lock first: a concurrent post of the same reference waits here, then sees its
-		// journal lines below
+		// lock first: a concurrent post of the same reference waits here, then sees its journal lines below
 		var rows = userAccountIds.isEmpty()
 				? List.<BalanceEntity>of()
 				: balanceRepository.lockByAccountIds(userAccountIds);
-		// a caller may have loaded these rows earlier in this transaction; read the
-		// committed values
+		// a caller may have loaded these rows earlier in this transaction; read the committed values
 		rows.forEach(row -> entityManager.refresh(row));
 		if (journalRepository.existsByReference(reference)) {
 			return false;
@@ -174,8 +171,7 @@ public class LedgerServiceImpl implements LedgerService {
 		}
 	}
 
-	// not @Transactional: findOrOpen opens its own transactions, and an outer one
-	// would hold a second connection
+	// not @Transactional: findOrOpen opens its own transactions, and an outer one would hold a second connection
 	@Override
 	public List<BalanceResponse> balances(UUID userId) {
 		var account = findOrOpen(userId);

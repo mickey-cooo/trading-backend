@@ -95,8 +95,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				}
 			}
 		} catch (JwtException | UsernameNotFoundException | IllegalArgumentException e) {
-			// bad token only; anything else (e.g. database down) propagates as 500
-			// no @ExceptionHandler matched: resolver writes nothing, so answer 401 here
+			// a bad token answers 401; any other error (e.g. database down) stays a 500
 			if (handlerExceptionResolver.resolveException(request, response, null, e) == null) {
 				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 			}

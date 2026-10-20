@@ -39,8 +39,7 @@ public class AuthServiceImpl implements AuthService {
 		this.refreshTokenRepository = refreshTokenRepository;
 	}
 
-	// not @Transactional: Argon2 verification must not pin a DB connection; save()
-	// is transactional itself
+	// not @Transactional: Argon2 verification must not pin a DB connection; save() is transactional itself
 	@Override
 	public AuthTokensResponse login(LoginDto request) {
 		var authentication = authenticationManager
@@ -48,8 +47,7 @@ public class AuthServiceImpl implements AuthService {
 		return issue((UserEntity) authentication.getPrincipal(), UUID.randomUUID());
 	}
 
-	// noRollbackFor: the family revocation on replay must commit despite the
-	// exception
+	// noRollbackFor: the family revocation on replay must commit despite the exception
 	@Override
 	@Transactional(noRollbackFor = InvalidTokenException.class)
 	public AuthTokensResponse refresh(String refreshToken) {
@@ -70,8 +68,7 @@ public class AuthServiceImpl implements AuthService {
 	@Override
 	@Transactional
 	public void logout(String refreshToken) {
-		// revoke the whole login, so an already-rotated token still ends the session.
-		// unknown tokens are not an error, so nothing leaks
+		// revoke the whole login so a rotated token still ends the session; unknown tokens are not an error
 		refreshTokenRepository.findByTokenHash(hash(refreshToken))
 				.ifPresent(t -> refreshTokenRepository.revokeFamily(t.getFamilyId(), Instant.now()));
 	}

@@ -8,8 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import trading.demo.repository.RefreshTokenRepository;
 
-// Rotation inserts a row per refresh and nothing ever deleted them, so the table (and the
-// family scan in revokeFamily) grew without bound. Expired rows are useless: drop them.
+// Refresh rotation adds a row each time and nothing deleted them, so drop the expired rows.
 @Component
 public class RefreshTokenPurger {
 	private final RefreshTokenRepository refreshTokenRepository;

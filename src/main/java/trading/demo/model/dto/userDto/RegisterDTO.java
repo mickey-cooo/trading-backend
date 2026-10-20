@@ -10,8 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class RegisterDTO {
-	// ASCII only: non-ASCII lookalikes (dotless i, long s) register as distinct
-	// accounts
+	// ASCII only: non-ASCII lookalikes (dotless i, long s) register as distinct accounts
 	@NotBlank
 	@Email
 	@Size(max = 254)

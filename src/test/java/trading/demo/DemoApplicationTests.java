@@ -89,8 +89,7 @@ class DemoApplicationTests {
 		registry.add("spring.datasource.username", () -> System.getenv("TEST_DATABASE_USERNAME"));
 		registry.add("spring.datasource.password", () -> System.getenv("TEST_DATABASE_PASSWORD"));
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-		// tests call matchOpenOrders() themselves, so the one-second job must not race
-		// them
+		// tests call matchOpenOrders() themselves, so the one-second job must not race them
 		registry.add("app.matcher.enabled", () -> "false");
 		registry.add("security.jwt.secret-key", () -> Base64.getEncoder().encodeToString(new byte[32]));
 	}
@@ -159,8 +158,7 @@ class DemoApplicationTests {
 						{"firstName":"Bob"}
 						""")).andExpect(status().isOk()).andExpect(jsonPath("$.firstName").value("Bob"));
 
-		// no path carries another user's id for a normal user; admin-only routes are
-		// forbidden
+		// no path carries another user's id for a normal user; admin-only routes are forbidden
 		mockMvc.perform(get("/api/v1/users/{id}", id).header("Authorization", "Bearer " + token))
 				.andExpect(status().isForbidden());
 		mockMvc.perform(get("/api/v1/users").param("ids", id).header("Authorization", "Bearer " + token))
@@ -186,8 +184,7 @@ class DemoApplicationTests {
 				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isUnauthorized());
 	}
 
-	// Markets: MarketSeeder creates BTC-USDT and ETH-USDT at startup.
-	// BTC-USDT is the pair these tests publish to; ETH-USDT stays without quotes.
+	// Markets: MarketSeeder creates BTC-USDT and ETH-USDT. Tests publish to BTC-USDT only; ETH-USDT has no quotes.
 	@Test
 	void marketsArePublicAndSeeded() throws Exception {
 		mockMvc.perform(get("/api/v1/markets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
@@ -218,8 +215,7 @@ class DemoApplicationTests {
 								{"price":"65000.5"}
 								"""))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.price").value("65000.50")).andReturn();
-		// other tests also publish BTC-USDT prices, so versions are compared, not
-		// hard-coded
+		// other tests also publish BTC-USDT prices, so versions are compared, not hard-coded
 		int firstVersion = JsonPath.read(first.getResponse().getContentAsString(), "$.version");
 		// a JSON number works too
 		mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
@@ -286,8 +282,7 @@ class DemoApplicationTests {
 		mockMvc.perform(get("/api/v1/markets/BTC-USDT/orders")).andExpect(status().isUnauthorized());
 	}
 
-	// Paper accounts and ledger: the first call opens the account and grants 10,000
-	// USDT, once.
+	// Paper accounts and ledger: the first call opens the account and grants 10,000 USDT, once.
 	private UserEntity newUser(String email) {
 		var user = new UserEntity();
 		user.setEmail(email);
@@ -423,8 +418,7 @@ class DemoApplicationTests {
 		}
 	}
 
-	// Market orders: BTC-USDT is priced at 100.00 here so the sums are easy to
-	// check.
+	// Market orders: BTC-USDT is priced at 100.00 here so the sums are easy to check.
 	private static String order(String symbol, String side, String quantity) {
 		return "{\"symbol\":\"" + symbol + "\",\"side\":\"" + side + "\",\"type\":\"MARKET\",\"quantity\":\"" + quantity
 				+ "\"}";
@@ -451,8 +445,7 @@ class DemoApplicationTests {
 		assertEquals("9800.000000000000000000", balance(owner, 2, "available"));
 		assertEquals("2.000000000000000000", balance(owner, 0, "available"));
 
-		// same key and same request (2.0 is the same number as 2): the first order
-		// comes back, nothing moves again
+		// same key and same request (2.0 is the same number as 2): the first order comes back, nothing moves again
 		mockMvc.perform(post("/api/v1/orders").with(user(owner)).header("Idempotency-Key", "k-1")
 				.contentType(MediaType.APPLICATION_JSON).content(order("BTC-USDT", "BUY", "2.0")))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(orderId));
@@ -598,8 +591,7 @@ class DemoApplicationTests {
 		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
 		var owner = newUser("limit-1@example.com");
 
-		// price is 100, limit is 90: not reached, so the order waits and 90 USDT is
-		// held back
+		// price is 100, limit is 90: not reached, so the order waits and 90 USDT is held back
 		var orderId = placeOrder(owner, "l-1", limitOrder("BUY", "1", "90"), 201);
 		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
 				.andExpect(jsonPath("$.status").value("OPEN")).andExpect(jsonPath("$.type").value("LIMIT"))
@@ -722,8 +714,7 @@ class DemoApplicationTests {
 		});
 
 		var finalStatus = orderService.get(owner.getId(), orderId).status().name();
-		// whichever won, the reserve is gone, and the money is either all back or spent
-		// at 80
+		// whichever won, the reserve is gone, and the money is either all back or spent at 80
 		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
 		if (finalStatus.equals("CANCELLED")) {
 			assertEquals("10000.000000000000000000", balance(owner, 2, "available"));

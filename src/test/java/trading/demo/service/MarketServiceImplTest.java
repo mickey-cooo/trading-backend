@@ -185,8 +185,7 @@ class MarketServiceImplTest {
 
 	@Test
 	void candlesComeBackOldestFirst() {
-		// the query returns newest first; rows are built before stubbing so mocks do
-		// not nest
+		// the query returns newest first; rows are built before stubbing so mocks do not nest
 		var newest = candleRow(1200, "101.00", "105.00", "99.50", "104.00");
 		var oldest = candleRow(1140, "100.00", "102.00", "98.00", "101.00");
 		when(quoteRepository.findCandles(any(), eq(300L), eq(2))).thenReturn(List.of(newest, oldest));

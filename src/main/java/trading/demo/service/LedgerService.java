@@ -24,11 +24,7 @@ public interface LedgerService {
 	// the other side of every movement; created on first use
 	AccountEntity systemAccount();
 
-	// Applies all legs and writes their journal lines in one transaction. Legs must
-	// add up to zero per asset.
-	// The reference names the whole movement, so use one reference per movement.
-	// Returns false, changing nothing, if this reference was already posted.
-	// Throws InsufficientFundsException if a user bucket would go below zero.
+	// Posts legs in one transaction (sum to zero per asset). False if already posted; throws InsufficientFundsException below zero.
 	boolean post(String reference, LedgerType type, List<Leg> legs);
 
 	List<BalanceResponse> balances(UUID userId);

@@ -13,9 +13,7 @@ import trading.demo.model.entity.UserEntity;
 
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, UUID> {
-	// exact match on the stored (already lower-cased) value: uses the unique index
-	// and
-	// can never match two rows, unlike an upper(email)=upper(?) IgnoreCase query
+	// exact match on the stored lower-cased email: uses the unique index and can never match two rows
 	@Query("select u from UserEntity u where u.email = :email")
 	Optional<UserEntity> findByCanonicalEmail(@Param("email") String email);
 

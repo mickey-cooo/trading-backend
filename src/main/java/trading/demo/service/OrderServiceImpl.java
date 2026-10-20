@@ -42,8 +42,7 @@ import trading.demo.repository.QuoteRepository;
 import trading.demo.repository.UserRepository;
 import trading.demo.service.LedgerService.Leg;
 
-// Lock order is always the same: the market first, then the account balances (inside ledgerService.post).
-// Submit, cancel and the matching job all follow it, so they cannot wait on each other forever.
+// Lock order: market first, then balances (in ledgerService.post). Submit, cancel and the matcher all follow it.
 @Service
 public class OrderServiceImpl implements OrderService {
 	private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
@@ -73,9 +72,7 @@ public class OrderServiceImpl implements OrderService {
 		this.transaction = new TransactionTemplate(transactionManager);
 	}
 
-	// not @Transactional: findOrOpen and systemAccount use their own transactions,
-	// and an outer one would hold a
-	// second connection while they wait for one
+	// not @Transactional: findOrOpen and systemAccount use their own transactions; an outer one would hold a second connection
 	@Override
 	public OrderResponse submit(UUID userId, String idempotencyKey, SubmitOrderRequest request) {
 		// first, so the hash below never sees an absurd number like 1E+2147483647
@@ -152,8 +149,7 @@ public class OrderServiceImpl implements OrderService {
 		return transaction.execute(status -> {
 			// a closed market can still be cancelled in, so the status is not checked here
 			lockMarket(pair);
-			// read again after the lock: a fill may have changed the order since the read
-			// above
+			// read again after the lock: a fill may have changed the order since the read above
 			var order = orderRepository.findByIdAndUserId(orderId, userId)
 					.orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 			if (order.getStatus() == OrderStatus.FILLED) {
@@ -190,8 +186,7 @@ public class OrderServiceImpl implements OrderService {
 		});
 	}
 
-	// shortcut: reads every open order each second; add a price filter in the query
-	// when there are many
+	// shortcut: reads every open order each second; add a price filter in the query when there are many
 	@Override
 	public void matchOpenOrders() {
 		var openOrderIds = orderRepository.findOpenOrderIds();
@@ -219,9 +214,7 @@ public class OrderServiceImpl implements OrderService {
 			return;
 		}
 		var pair = found.get().getMarket().getPair();
-		// cheap check without the lock: most open orders have not reached their price,
-		// and they must not
-		// block submits and cancels on the market every second
+		// cheap check without the lock: most open orders have not reached their price and must not block the market every second
 		var latestQuote = quoteRepository.findFirstByMarketOrderByVersionDesc(found.get().getMarket());
 		if (latestQuote.isEmpty() || !hasReachedLimit(found.get(), latestQuote.get())) {
 			return;
@@ -259,8 +252,7 @@ public class OrderServiceImpl implements OrderService {
 		ledgerService.post("trade:" + order.getId(), LedgerType.TRADE,
 				tradeLegs(account, system, market, order, cost, isLimitOrder));
 
-		// a buy that filled cheaper than its limit gets the unused part of its reserve
-		// back
+		// a buy that filled cheaper than its limit gets the unused part of its reserve back
 		if (isLimitOrder && order.getSide() == OrderSide.BUY) {
 			var unused = reservedAmount(order).subtract(cost);
 			if (unused.signum() > 0) {
@@ -276,10 +268,7 @@ public class OrderServiceImpl implements OrderService {
 		return order.getSide() == OrderSide.BUY ? comparison <= 0 : comparison >= 0;
 	}
 
-	// The buyer pays the quote asset and gets the base asset; a sell is the same
-	// with the signs flipped.
-	// A limit order pays out of what it reserved, a market order out of what is
-	// available.
+	// Buyer pays the quote asset and gets the base asset (sell flips the signs); limit pays from reserved, market from available.
 	private static List<Leg> tradeLegs(AccountEntity account, AccountEntity system, MarketEntity market,
 			OrderEntity order, BigDecimal cost, boolean payFromReserved) {
 		var quantity = order.getQuantity();
@@ -298,8 +287,7 @@ public class OrderServiceImpl implements OrderService {
 				new Leg(system, quoteAsset, BalanceBucket.AVAILABLE, cost.negate()));
 	}
 
-	// What a limit order holds back: a buy holds USDT (quantity x limit price), a
-	// sell holds the coin.
+	// What a limit order holds back: a buy holds USDT (quantity x limit price), a sell holds the coin.
 	private static BigDecimal reservedAmount(OrderEntity order) {
 		return order.getSide() == OrderSide.BUY
 				? order.getQuantity().multiply(order.getLimitPrice())
@@ -325,8 +313,7 @@ public class OrderServiceImpl implements OrderService {
 				.orElseThrow(() -> new ResourceNotFoundException("Market not found"));
 	}
 
-	// Same request gives the same hash, however the number is written (2 and 2.0
-	// are the same).
+	// Same request gives the same hash, however the number is written (2 and 2.0 are the same).
 	private static String hashOf(String pair, SubmitOrderRequest request) {
 		var text = String.join("|", pair, request.side().name(), request.type().name(),
 				request.quantity().stripTrailingZeros().toPlainString());
