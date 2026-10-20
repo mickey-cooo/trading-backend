@@ -33,6 +33,10 @@ public class SecurityConfig {
 	public static final String[] PUBLIC_MARKET_GET_PATHS = {"/api/v1/markets", "/api/v1/markets/*/quote",
 			"/api/v1/markets/*/candles", "/api/v1/markets/*/stream"};
 
+	// the API docs are public so a new developer can read them before logging in
+	public static final String[] PUBLIC_DOCS_PATHS = {"/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
+			"/swagger-ui/**"};
+
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
 			throws Exception {
@@ -41,8 +45,8 @@ public class SecurityConfig {
 						// non-admins are denied before the body is read
 						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 						// public prices: only listed routes
-						.requestMatchers(HttpMethod.GET, PUBLIC_MARKET_GET_PATHS).permitAll().anyRequest()
-						.authenticated())
+						.requestMatchers(HttpMethod.GET, PUBLIC_MARKET_GET_PATHS).permitAll()
+						.requestMatchers(HttpMethod.GET, PUBLIC_DOCS_PATHS).permitAll().anyRequest().authenticated())
 				.exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

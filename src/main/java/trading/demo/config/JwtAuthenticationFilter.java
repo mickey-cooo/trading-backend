@@ -51,10 +51,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			.<RequestMatcher>map(path -> PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, path))
 			.toList();
 
-	// a stale token must not block auth routes or public prices
+	private static final List<RequestMatcher> PUBLIC_DOCS_ROUTES = Arrays.stream(SecurityConfig.PUBLIC_DOCS_PATHS)
+			.<RequestMatcher>map(path -> PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, path))
+			.toList();
+
+	// a stale token must not block auth routes, public prices or the API docs
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return AUTH_ROUTES.matches(request) || PUBLIC_MARKET_ROUTES.stream().anyMatch(route -> route.matches(request));
+		return AUTH_ROUTES.matches(request) || PUBLIC_MARKET_ROUTES.stream().anyMatch(route -> route.matches(request))
+				|| PUBLIC_DOCS_ROUTES.stream().anyMatch(route -> route.matches(request));
 	}
 
 	@Override
