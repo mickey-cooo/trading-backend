@@ -18,7 +18,7 @@ public class OrderMapper {
 
 	public OrderResponse toOrderResponse(OrderEntity order) {
 		return new OrderResponse(order.getId(), order.getMarket().getPair(), order.getSide(), order.getType(),
-				quantity(order.getQuantity()), order.getStatus(), order.getCreatedAt());
+				quantity(order.getQuantity()), limitPrice(order), order.getStatus(), order.getCreatedAt());
 	}
 
 	public TradeResponse toTradeResponse(ExecutionEntity execution) {
@@ -26,6 +26,12 @@ public class OrderMapper {
 				// the DB keeps 18 decimals; show the market's own, same as a fresh order
 				execution.getPrice().setScale(marketProperties.priceDecimals()).toPlainString(),
 				quantity(execution.getQuantity()), execution.getQuoteVersion(), execution.getCreatedAt());
+	}
+
+	private String limitPrice(OrderEntity order) {
+		return order.getLimitPrice() == null
+				? null
+				: order.getLimitPrice().setScale(marketProperties.priceDecimals()).toPlainString();
 	}
 
 	private String quantity(java.math.BigDecimal value) {

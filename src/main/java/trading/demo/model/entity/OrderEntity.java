@@ -2,6 +2,7 @@ package trading.demo.model.entity;
 
 import java.math.BigDecimal;
 
+import jakarta.persistence.CheckConstraint;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,7 +23,7 @@ import trading.demo.model.enums.OrderType;
 @Entity
 @Getter
 @Setter
-@Table(name = "orders", uniqueConstraints = @UniqueConstraint(name = "uk_orders_user_idempotency_key", columnNames = {
+@Table(name = "orders", check = @CheckConstraint(name = "ck_orders_limit_has_price", constraint = "type <> 'LIMIT' or limit_price is not null"), uniqueConstraints = @UniqueConstraint(name = "uk_orders_user_idempotency_key", columnNames = {
 		"user_id",
 		"idempotency_key"}), indexes = @Index(name = "idx_orders_user_created_at", columnList = "user_id, created_at"))
 public class OrderEntity extends TemplateEntity {
@@ -46,6 +47,11 @@ public class OrderEntity extends TemplateEntity {
 	// coin amount, at most the allowed decimals (checked before saving)
 	@Column(nullable = false, precision = 38, scale = 18)
 	private BigDecimal quantity;
+
+	// only for LIMIT orders: a buy fills at this price or lower, a sell at this
+	// price or higher
+	@Column(name = "limit_price", precision = 38, scale = 18)
+	private BigDecimal limitPrice;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)

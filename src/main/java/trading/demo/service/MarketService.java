@@ -21,6 +21,9 @@ public interface MarketService {
 	// ValidationException)
 	List<CandleResponse> getCandles(String pair, String interval, int limit);
 
+	// throws ValidationException unless price is above zero, max 2 decimals
+	void requireValidPrice(BigDecimal price);
+
 	// throws ValidationException unless quantity is above zero, max 8 decimals
 	void requireValidQuantity(BigDecimal quantity);
 }

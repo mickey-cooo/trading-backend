@@ -92,6 +92,11 @@ public class MarketServiceImpl implements MarketService {
 	}
 
 	@Override
+	public void requireValidPrice(BigDecimal price) {
+		requireValidAmount(price, marketProperties.priceDecimals(), "Price");
+	}
+
+	@Override
 	public void requireValidQuantity(BigDecimal quantity) {
 		requireValidAmount(quantity, marketProperties.quantityDecimals(), "Quantity");
 	}

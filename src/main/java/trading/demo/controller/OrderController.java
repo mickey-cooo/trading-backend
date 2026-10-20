@@ -59,6 +59,11 @@ public class OrderController {
 		return orderService.get(me.getId(), id);
 	}
 
+	@PostMapping("/orders/{id}/cancel")
+	public OrderResponse cancel(@AuthenticationPrincipal UserEntity me, @PathVariable UUID id) {
+		return orderService.cancel(me.getId(), id);
+	}
+
 	@GetMapping("/trades")
 	public PagedModel<TradeResponse> trades(@AuthenticationPrincipal UserEntity me,
 			@RequestParam(defaultValue = "0") @Min(0) int page,

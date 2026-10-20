@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import trading.demo.model.enums.OrderSide;
 import trading.demo.model.enums.OrderType;
 
-// quantity is in the base coin, e.g. 0.01 BTC for BTC-USDT.
+// quantity is in the base coin, e.g. 0.01 BTC for BTC-USDT. limitPrice is required for LIMIT, not allowed for MARKET.
 public record SubmitOrderRequest(@NotBlank @Size(max = 41) String symbol, @NotNull OrderSide side,
-		@NotNull OrderType type, @NotNull BigDecimal quantity) {
+		@NotNull OrderType type, @NotNull BigDecimal quantity, BigDecimal limitPrice) {
 }

@@ -7,7 +7,7 @@ import trading.demo.model.enums.OrderSide;
 import trading.demo.model.enums.OrderStatus;
 import trading.demo.model.enums.OrderType;
 
-// quantity is a plain decimal string, never a float.
-public record OrderResponse(UUID id, String symbol, OrderSide side, OrderType type, String quantity, OrderStatus status,
-		Instant createdAt) {
+// quantity and limitPrice are plain decimal strings, never floats. limitPrice is null for a MARKET order.
+public record OrderResponse(UUID id, String symbol, OrderSide side, OrderType type, String quantity, String limitPrice,
+		OrderStatus status, Instant createdAt) {
 }
