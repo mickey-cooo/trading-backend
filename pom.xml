@@ -154,7 +154,9 @@
 				<version>2.43.0</version>
 				<configuration>
 					<java>
-						<eclipse/>
+						<eclipse>
+							<file>${project.basedir}/eclipse-formatter.xml</file>
+						</eclipse>
 					</java>
 				</configuration>
 			</plugin>

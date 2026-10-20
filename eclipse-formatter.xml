@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Eclipse's defaults, except comments are never re-wrapped, so one-line comments stay one line. -->
+<profiles version="23">
+	<profile kind="CodeFormatterProfile" name="trading" version="23">
+		<setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="200"/>
+		<setting id="org.eclipse.jdt.core.formatter.comment.format_line_comment" value="false"/>
+		<setting id="org.eclipse.jdt.core.formatter.comment.format_block_comment" value="false"/>
+		<setting id="org.eclipse.jdt.core.formatter.comment.format_javadoc_comment" value="false"/>
+	</profile>
+</profiles>
