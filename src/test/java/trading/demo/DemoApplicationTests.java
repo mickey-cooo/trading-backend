@@ -33,11 +33,13 @@ import trading.demo.model.enums.OrderSide;
 import trading.demo.model.enums.OrderType;
 import trading.demo.model.entity.JournalEntryEntity;
 import trading.demo.model.entity.UserEntity;
+import trading.demo.model.enums.AuditAction;
 import trading.demo.model.enums.BalanceBucket;
 import trading.demo.model.enums.LedgerType;
 import trading.demo.model.enums.RoleType;
 import trading.demo.repository.AccountRepository;
 import trading.demo.repository.AssetRepository;
+import trading.demo.repository.AuditLogRepository;
 import trading.demo.repository.BalanceRepository;
 import trading.demo.repository.JournalEntryRepository;
 import trading.demo.repository.MarketRepository;
@@ -574,7 +576,7 @@ class DemoApplicationTests {
 
 		assertEquals(1, filled.stream().filter(done -> done).count());
 		assertEquals("4000.000000000000000000", balance(owner, 2, "available"));
-		assertEquals(1, orderService.list(owner.getId(), 0, 20).getTotalElements());
+		assertEquals(1, orderService.list(owner.getId(), null, 0, 20).getTotalElements());
 	}
 
 	// Limit orders and cancel
@@ -732,5 +734,252 @@ class DemoApplicationTests {
 			assertEquals("1.000000000000000000", balance(owner, 0, "available"));
 		}
 		assertEquals(2, results.size());
+	}
+
+	// Portfolio, admin and API docs
+	@Autowired
+	private AuditLogRepository auditLogRepository;
+
+	private UserEntity newAdmin(String email) {
+		var admin = newUser(email);
+		admin.setRole(RoleType.ADMIN);
+		return userRepository.saveAndFlush(admin);
+	}
+
+	private void changeStatus(UserEntity admin, String path, String status, int expectedStatus) throws Exception {
+		mockMvc.perform(patch(path).with(user(admin)).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"" + status + "\"}")).andExpect(status().is(expectedStatus));
+	}
+
+	@Test
+	void portfolioValuesEachAssetInUsdtAndCountsReservedAmounts() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("portfolio-1@example.com");
+		placeOrder(owner, "p-1", order("BTC-USDT", "BUY", "2"), 201);
+		// one BTC is held back by an open sell order; it still counts toward the value
+		placeOrder(owner, "p-2", limitOrder("SELL", "1", "150"), 201);
+
+		var body = mockMvc.perform(get("/api/v1/portfolio").with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.quoteTime").exists()).andReturn().getResponse().getContentAsString();
+		assertEquals(List.of("1.000000000000000000"), JsonPath.read(body, "$.assets[?(@.asset=='BTC')].available"));
+		assertEquals(List.of("1.000000000000000000"), JsonPath.read(body, "$.assets[?(@.asset=='BTC')].reserved"));
+		assertEquals(List.of("200.00"), JsonPath.read(body, "$.assets[?(@.asset=='BTC')].valueUsdt"));
+		assertEquals(List.of("9800.00"), JsonPath.read(body, "$.assets[?(@.asset=='USDT')].valueUsdt"));
+
+		// another user sees only their own money
+		var otherBody = mockMvc.perform(get("/api/v1/portfolio").with(user(newUser("portfolio-2@example.com"))))
+				.andReturn().getResponse().getContentAsString();
+		assertEquals(List.of("0.00"), JsonPath.read(otherBody, "$.assets[?(@.asset=='BTC')].valueUsdt"));
+		assertEquals(List.of("10000.00"), JsonPath.read(otherBody, "$.assets[?(@.asset=='USDT')].valueUsdt"));
+		mockMvc.perform(get("/api/v1/portfolio")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void ordersCanBeFilteredByStatus() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("filter-1@example.com");
+		placeOrder(owner, "f-1", order("BTC-USDT", "BUY", "1"), 201);
+		var openId = placeOrder(owner, "f-2", limitOrder("BUY", "1", "90"), 201);
+
+		mockMvc.perform(get("/api/v1/orders").with(user(owner))).andExpect(jsonPath("$.content.length()").value(2));
+		mockMvc.perform(get("/api/v1/orders").param("status", "OPEN").with(user(owner))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].id").value(openId));
+		mockMvc.perform(get("/api/v1/orders").param("status", "FILLED").with(user(owner)))
+				.andExpect(jsonPath("$.content.length()").value(1));
+		mockMvc.perform(get("/api/v1/orders").param("status", "NOPE").with(user(owner)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void suspendedMarketTakesNoOrdersAndNoFillsButCancelStillWorks() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var admin = newAdmin("market-switch-admin@example.com");
+		var owner = newUser("market-switch-1@example.com");
+		var openId = placeOrder(owner, "m-1", limitOrder("BUY", "1", "90"), 201);
+		var changesBefore = auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.MARKET_STATUS_CHANGED)
+				.size();
+		var quotesBefore = auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.QUOTE_PUBLISHED).size();
+
+		try {
+			mockMvc.perform(patch("/api/v1/admin/markets/btc-usdt/status").with(user(admin))
+					.contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"SUSPENDED\"}"))
+					.andExpect(status().isOk()).andExpect(jsonPath("$.pair").value("BTC-USDT"))
+					.andExpect(jsonPath("$.status").value("SUSPENDED"));
+			// no new orders
+			placeOrder(owner, "m-2", order("BTC-USDT", "BUY", "1"), 409);
+			placeOrder(owner, "m-3", limitOrder("BUY", "1", "90"), 409);
+			// no fills, even when the price reaches the limit
+			mockMvc.perform(post("/api/v1/admin/markets/BTC-USDT/quotes").with(user(admin))
+					.contentType(MediaType.APPLICATION_JSON).content("{\"price\":\"80\"}"))
+					.andExpect(status().isCreated());
+			orderService.matchOpenOrders();
+			mockMvc.perform(get("/api/v1/orders/{id}", openId).with(user(owner)))
+					.andExpect(jsonPath("$.status").value("OPEN"));
+			// cancel still works
+			mockMvc.perform(post("/api/v1/orders/{id}/cancel", openId).with(user(owner))).andExpect(status().isOk())
+					.andExpect(jsonPath("$.status").value("CANCELLED"));
+			assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		} finally {
+			changeStatus(admin, "/api/v1/admin/markets/BTC-USDT/status", "ACTIVE", 200);
+			marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		}
+		placeOrder(owner, "m-4", order("BTC-USDT", "BUY", "1"), 201);
+
+		// two switches and one published price, each with an audit row
+		assertEquals(changesBefore + 2,
+				auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.MARKET_STATUS_CHANGED).size());
+		assertEquals(quotesBefore + 1,
+				auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.QUOTE_PUBLISHED).size());
+		var lastChange = auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.MARKET_STATUS_CHANGED)
+				.getLast();
+		assertEquals(admin.getId(), lastChange.getAdminId());
+		assertEquals("BTC-USDT", lastChange.getTarget());
+		assertEquals("ACTIVE", lastChange.getDetail());
+	}
+
+	@Test
+	void marketStatusRoutesRejectNormalUsersAndBadInput() throws Exception {
+		var admin = newAdmin("market-switch-admin-2@example.com");
+		var normalUser = newUser("market-switch-2@example.com");
+		changeStatus(normalUser, "/api/v1/admin/markets/BTC-USDT/status", "SUSPENDED", 403);
+		mockMvc.perform(patch("/api/v1/admin/markets/BTC-USDT/status").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"SUSPENDED\"}")).andExpect(status().isUnauthorized());
+		changeStatus(admin, "/api/v1/admin/markets/BTC-USDT/status", "DELETED", 400);
+		changeStatus(admin, "/api/v1/admin/markets/BTC-USDT/status", "PENDING", 400);
+		changeStatus(admin, "/api/v1/admin/markets/DOGE-USDT/status", "SUSPENDED", 404);
+		mockMvc.perform(patch("/api/v1/admin/markets/BTC-USDT/status").with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+		assertEquals(Common.ACTIVE, marketRepository.findByPair("BTC-USDT").orElseThrow().getStatus());
+	}
+
+	@Test
+	void suspendingAUserCancelsTheirOrdersReleasesReservesAndBlocksTheirToken() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var admin = newAdmin("user-switch-admin@example.com");
+		mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
+				{"email":"suspend-me@example.com","password":"correct-horse","confirmPassword":"correct-horse"}
+				""")).andExpect(status().isCreated());
+		var tokens = mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
+				{"email":"suspend-me@example.com","password":"correct-horse"}
+				""")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String accessToken = JsonPath.read(tokens, "$.accessToken");
+		var target = userRepository.findByEmail("suspend-me@example.com").orElseThrow();
+
+		placeOrder(target, "s-1", order("BTC-USDT", "BUY", "1"), 201);
+		var buyId = placeOrder(target, "s-2", limitOrder("BUY", "1", "90"), 201);
+		var sellId = placeOrder(target, "s-3", limitOrder("SELL", "1", "150"), 201);
+		assertEquals("90.000000000000000000", balance(target, 2, "reserved"));
+		assertEquals("1.000000000000000000", balance(target, 0, "reserved"));
+		mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + accessToken))
+				.andExpect(status().isOk());
+		var changesBefore = auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.USER_STATUS_CHANGED).size();
+
+		mockMvc.perform(patch("/api/v1/admin/users/{id}/status", target.getId()).with(user(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"SUSPENDED\"}"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SUSPENDED"));
+
+		for (var orderId : List.of(buyId, sellId)) {
+			mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(target)))
+					.andExpect(jsonPath("$.status").value("CANCELLED"));
+		}
+		assertEquals("9900.000000000000000000", balance(target, 2, "available"));
+		assertEquals("0.000000000000000000", balance(target, 2, "reserved"));
+		assertEquals("1.000000000000000000", balance(target, 0, "available"));
+		assertEquals("0.000000000000000000", balance(target, 0, "reserved"));
+		assertEquals(Common.SUSPENDED, userRepository.findById(target.getId()).orElseThrow().getStatus());
+		// the token they already hold stops working at once
+		mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + accessToken))
+				.andExpect(status().isUnauthorized());
+
+		// suspending twice changes nothing more; reactivating gives the token back
+		changeStatus(admin, "/api/v1/admin/users/" + target.getId() + "/status", "SUSPENDED", 200);
+		assertEquals("9900.000000000000000000", balance(target, 2, "available"));
+		changeStatus(admin, "/api/v1/admin/users/" + target.getId() + "/status", "ACTIVE", 200);
+		mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + accessToken))
+				.andExpect(status().isOk());
+		assertEquals(changesBefore + 3,
+				auditLogRepository.findByActionOrderByCreatedAtAsc(AuditAction.USER_STATUS_CHANGED).size());
+	}
+
+	@Test
+	void userStatusRouteRejectsNormalUsersSelfChangeAndBadInput() throws Exception {
+		var admin = newAdmin("user-switch-admin-2@example.com");
+		var normalUser = newUser("user-switch-2@example.com");
+		var path = "/api/v1/admin/users/" + normalUser.getId() + "/status";
+		changeStatus(normalUser, path, "SUSPENDED", 403);
+		changeStatus(normalUser, "/api/v1/admin/users/" + admin.getId() + "/status", "SUSPENDED", 403);
+		changeStatus(admin, "/api/v1/admin/users/" + admin.getId() + "/status", "SUSPENDED", 409);
+		changeStatus(admin, path, "DELETED", 400);
+		changeStatus(admin, "/api/v1/admin/users/" + java.util.UUID.randomUUID() + "/status", "SUSPENDED", 404);
+		assertEquals(Common.ACTIVE, userRepository.findById(normalUser.getId()).orElseThrow().getStatus());
+		assertEquals(Common.ACTIVE, userRepository.findById(admin.getId()).orElseThrow().getStatus());
+	}
+
+	@Test
+	void suspendingAUserWhileTheMatcherRunsNeverLeavesAReserveBehind() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("120"));
+		var owner = newUser("suspend-race@example.com");
+		var orderId = placeOrder(owner, "r-1", limitOrder("BUY", "1", "100"), 201);
+		// the price drops to the limit, so the matcher wants to fill the same order
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+
+		var next = new java.util.concurrent.atomic.AtomicInteger();
+		runTogether(2, () -> {
+			if (next.getAndIncrement() == 0) {
+				return orderService.cancelOpenOrders(owner.getId());
+			}
+			orderService.matchOpenOrders();
+			return 0;
+		});
+
+		var finalStatus = JsonPath.<String>read(mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
+				.andReturn().getResponse().getContentAsString(), "$.status");
+		assertEquals("0.000000000000000000", balance(owner, 2, "reserved"));
+		if (finalStatus.equals("FILLED")) {
+			assertEquals("9900.000000000000000000", balance(owner, 2, "available"));
+			assertEquals("1.000000000000000000", balance(owner, 0, "available"));
+		} else {
+			assertEquals("CANCELLED", finalStatus);
+			assertEquals("10000.000000000000000000", balance(owner, 2, "available"));
+		}
+	}
+
+	@Test
+	void apiDocsArePublicAndListThePortfolioAndAdminRoutes() throws Exception {
+		mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.paths['/api/v1/portfolio']").exists())
+				.andExpect(jsonPath("$.paths['/api/v1/orders/{id}/cancel']").exists())
+				.andExpect(jsonPath("$.paths['/api/v1/admin/users/{id}/status']").exists())
+				.andExpect(jsonPath("$.paths['/api/v1/admin/markets/{pair}/status']").exists());
+	}
+
+	@Test
+	void aSuspendedUserCannotPlaceOrdersAndTheirOpenOrderIsNotFilled() throws Exception {
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+		var owner = newUser("suspended-race@example.com");
+		var orderId = placeOrder(owner, "q-1", limitOrder("BUY", "1", "90"), 201);
+
+		// the suspension lands after the request passed the login check
+		owner.setStatus(Common.SUSPENDED);
+		userRepository.saveAndFlush(owner);
+		placeOrder(owner, "q-2", limitOrder("BUY", "1", "90"), 409);
+		marketService.publishQuote("BTC-USDT", new BigDecimal("90"));
+		orderService.matchOpenOrders();
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
+				.andExpect(jsonPath("$.status").value("OPEN"));
+
+		owner.setStatus(Common.ACTIVE);
+		userRepository.saveAndFlush(owner);
+		orderService.matchOpenOrders();
+		mockMvc.perform(get("/api/v1/orders/{id}", orderId).with(user(owner)))
+				.andExpect(jsonPath("$.status").value("FILLED"));
+		marketService.publishQuote("BTC-USDT", new BigDecimal("100"));
+	}
+
+	@Test
+	void apiDocsAreNotBlockedByAStaleToken() throws Exception {
+		mockMvc.perform(get("/v3/api-docs").header("Authorization", "Bearer not-a-real-token"))
+				.andExpect(status().isOk());
 	}
 }
