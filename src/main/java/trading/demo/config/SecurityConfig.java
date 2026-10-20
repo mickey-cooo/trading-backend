@@ -31,7 +31,7 @@ import trading.demo.repository.UserRepository;
 public class SecurityConfig {
 	// open to everyone, no token needed (JwtAuthenticationFilter skips these too)
 	public static final String[] PUBLIC_MARKET_GET_PATHS = {"/api/v1/markets", "/api/v1/markets/*/quote",
-			"/api/v1/markets/*/candles"};
+			"/api/v1/markets/*/candles", "/api/v1/markets/*/stream"};
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)

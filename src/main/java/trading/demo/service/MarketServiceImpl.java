@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,13 +32,15 @@ public class MarketServiceImpl implements MarketService {
 	private final QuoteRepository quoteRepository;
 	private final MarketMapper marketMapper;
 	private final MarketProperties marketProperties;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public MarketServiceImpl(MarketRepository marketRepository, QuoteRepository quoteRepository,
-			MarketMapper marketMapper, MarketProperties marketProperties) {
+			MarketMapper marketMapper, MarketProperties marketProperties, ApplicationEventPublisher eventPublisher) {
 		this.marketRepository = marketRepository;
 		this.quoteRepository = quoteRepository;
 		this.marketMapper = marketMapper;
 		this.marketProperties = marketProperties;
+		this.eventPublisher = eventPublisher;
 	}
 
 	@Override
@@ -70,7 +73,10 @@ public class MarketServiceImpl implements MarketService {
 		newQuote.setMarket(market);
 		newQuote.setPrice(price.setScale(marketProperties.priceDecimals()));
 		newQuote.setVersion(lastVersion + 1);
-		return marketMapper.toQuoteResponse(quoteRepository.save(newQuote));
+		var saved = marketMapper.toQuoteResponse(quoteRepository.save(newQuote));
+		// listeners run after this transaction commits
+		eventPublisher.publishEvent(new QuotePublished(saved.pair(), saved.price()));
+		return saved;
 	}
 
 	@Override

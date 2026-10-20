@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import trading.demo.config.MarketProperties;
 import trading.demo.exception.ResourceNotFoundException;
@@ -34,6 +35,7 @@ import trading.demo.repository.QuoteRepository.CandleRow;
 class MarketServiceImplTest {
 	private MarketRepository marketRepository;
 	private QuoteRepository quoteRepository;
+	private ApplicationEventPublisher eventPublisher;
 	private MarketServiceImpl marketService;
 	private MarketEntity bitcoinTetherPair;
 
@@ -41,8 +43,9 @@ class MarketServiceImplTest {
 	void setUp() {
 		marketRepository = mock(MarketRepository.class);
 		quoteRepository = mock(QuoteRepository.class);
+		eventPublisher = mock(ApplicationEventPublisher.class);
 		marketService = new MarketServiceImpl(marketRepository, quoteRepository, new MarketMapper(),
-				new MarketProperties(2, 8, 18));
+				new MarketProperties(2, 8, 18), eventPublisher);
 
 		bitcoinTetherPair = new MarketEntity();
 		bitcoinTetherPair.setPair("BTC-USDT");
@@ -61,6 +64,15 @@ class MarketServiceImplTest {
 		assertEquals(1, response.version());
 		assertEquals("65000.50", response.price());
 		assertEquals("BTC-USDT", response.pair());
+	}
+
+	@Test
+	void publishedQuoteIsAnnouncedForTheLiveChart() {
+		when(quoteRepository.findFirstByMarketOrderByVersionDesc(bitcoinTetherPair)).thenReturn(Optional.empty());
+
+		marketService.publishQuote("BTC-USDT", new BigDecimal("65000.50"));
+
+		verify(eventPublisher).publishEvent(new QuotePublished("BTC-USDT", "65000.50"));
 	}
 
 	@Test
