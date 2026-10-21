@@ -17,8 +17,8 @@ import org.hibernate.annotations.Immutable;
 @Immutable
 @Getter
 @Setter
-@Table(name = "executions")
-public class ExecutionEntity extends TemplateEntity {
+@Table(name = "trades")
+public class TradeEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "order_id", nullable = false)

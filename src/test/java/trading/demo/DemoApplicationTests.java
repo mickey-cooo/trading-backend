@@ -31,7 +31,7 @@ import trading.demo.model.dto.orderDto.SubmitOrderRequest;
 import trading.demo.model.enums.Common;
 import trading.demo.model.enums.OrderSide;
 import trading.demo.model.enums.OrderType;
-import trading.demo.model.entity.JournalEntryEntity;
+import trading.demo.model.entity.LedgerEntryEntity;
 import trading.demo.model.entity.UserEntity;
 import trading.demo.model.enums.AuditAction;
 import trading.demo.model.enums.BalanceBucket;
@@ -41,7 +41,7 @@ import trading.demo.repository.AccountRepository;
 import trading.demo.repository.AssetRepository;
 import trading.demo.repository.AuditLogRepository;
 import trading.demo.repository.BalanceRepository;
-import trading.demo.repository.JournalEntryRepository;
+import trading.demo.repository.LedgerEntryRepository;
 import trading.demo.repository.MarketRepository;
 import trading.demo.repository.UserRepository;
 import trading.demo.service.LedgerService;
@@ -66,7 +66,7 @@ class DemoApplicationTests {
 	private BalanceRepository balanceRepository;
 
 	@Autowired
-	private JournalEntryRepository journalRepository;
+	private LedgerEntryRepository ledgerEntryRepository;
 
 	@Autowired
 	private AssetRepository assetRepository;
@@ -324,7 +324,7 @@ class DemoApplicationTests {
 		var accountIds = runTogether(8, () -> ledgerService.findOrOpen(owner.getId()).getId());
 
 		assertEquals(1, accountIds.stream().distinct().count());
-		var fundings = journalRepository.findAll().stream().filter(
+		var fundings = ledgerEntryRepository.findAll().stream().filter(
 				line -> line.getAccount().getId().equals(accountIds.get(0)) && line.getType() == LedgerType.FUNDING)
 				.toList();
 		assertEquals(1, fundings.size());
@@ -369,7 +369,7 @@ class DemoApplicationTests {
 	}
 
 	@Test
-	void journalReplayGivesTheStoredBalancesAndEveryAssetSumsToZero() {
+	void ledgerReplayGivesTheStoredBalancesAndEveryAssetSumsToZero() {
 		var owner = newUser("wallet-replay@example.com");
 		var account = ledgerService.findOrOpen(owner.getId());
 		var usdt = assetRepository.findBySymbol("USDT").orElseThrow();
@@ -377,18 +377,18 @@ class DemoApplicationTests {
 				List.of(new Leg(account, usdt, BalanceBucket.AVAILABLE, new BigDecimal("-250.5")),
 						new Leg(account, usdt, BalanceBucket.RESERVED, new BigDecimal("250.5"))));
 
-		var lines = journalRepository.findAll();
+		var lines = ledgerEntryRepository.findAll();
 		for (var bucket : BalanceBucket.values()) {
 			var replayed = lines.stream()
 					.filter(line -> line.getAccount().getId().equals(account.getId())
 							&& line.getAsset().getId().equals(usdt.getId()) && line.getBucket() == bucket)
-					.map(JournalEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+					.map(LedgerEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 			var stored = balanceRepository.findByAccountIdOrderByAssetSymbolAsc(account.getId()).get(2);
 			assertEquals(0, replayed
 					.compareTo(bucket == BalanceBucket.AVAILABLE ? stored.getAvailable() : stored.getReserved()));
 		}
 		var total = lines.stream().filter(line -> line.getAsset().getId().equals(usdt.getId()))
-				.map(JournalEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+				.map(LedgerEntryEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 		assertEquals(0, total.signum());
 	}
 

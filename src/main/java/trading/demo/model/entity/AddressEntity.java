@@ -13,8 +13,8 @@ import lombok.Setter;
 @Setter
 @Getter
 @Entity
-@Table(name = "user_addresses")
-public class AddressEntity extends TemplateEntity {
+@Table(name = "addresses")
+public class AddressEntity extends BaseEntity {
 	@Column(nullable = true)
 	private String country;
 

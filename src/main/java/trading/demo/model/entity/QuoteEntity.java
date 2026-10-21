@@ -20,7 +20,7 @@ import lombok.Setter;
 @Table(name = "quotes", uniqueConstraints = @UniqueConstraint(name = "uk_quotes_market_version", columnNames = {
 		"market_id",
 		"version"}), indexes = @Index(name = "idx_quotes_market_created_at", columnList = "market_id, created_at"))
-public class QuoteEntity extends TemplateEntity {
+public class QuoteEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "market_id", nullable = false)

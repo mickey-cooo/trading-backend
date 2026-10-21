@@ -16,7 +16,7 @@ import jakarta.persistence.PreUpdate;
 @Setter
 @Getter
 @MappedSuperclass
-public abstract class TemplateEntity {
+public abstract class BaseEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;

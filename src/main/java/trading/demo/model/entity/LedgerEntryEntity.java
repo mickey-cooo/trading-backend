@@ -23,10 +23,10 @@ import trading.demo.model.enums.LedgerType;
 @Immutable
 @Getter
 @Setter
-@Table(name = "journal_entries", uniqueConstraints = @UniqueConstraint(name = "uk_journal_reference_line", columnNames = {
+@Table(name = "ledger_entries", uniqueConstraints = @UniqueConstraint(name = "uk_ledger_reference_line", columnNames = {
 		"reference", "account_id", "asset_id",
-		"bucket"}), indexes = @Index(name = "idx_journal_account_created_at", columnList = "account_id, created_at"))
-public class JournalEntryEntity extends TemplateEntity {
+		"bucket"}), indexes = @Index(name = "idx_ledger_account_created_at", columnList = "account_id, created_at"))
+public class LedgerEntryEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "account_id", nullable = false)

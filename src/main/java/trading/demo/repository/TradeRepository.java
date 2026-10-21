@@ -7,10 +7,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import trading.demo.model.entity.ExecutionEntity;
+import trading.demo.model.entity.TradeEntity;
 
 @Repository
-public interface ExecutionRepository extends JpaRepository<ExecutionEntity, UUID> {
-	// executions of this user's orders
-	Page<ExecutionEntity> findByOrderUserId(UUID userId, Pageable pageable);
+public interface TradeRepository extends JpaRepository<TradeEntity, UUID> {
+	// trades of this user's orders
+	Page<TradeEntity> findByOrderUserId(UUID userId, Pageable pageable);
 }

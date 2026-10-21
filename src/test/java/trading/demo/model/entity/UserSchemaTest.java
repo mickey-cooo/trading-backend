@@ -64,7 +64,7 @@ class UserSchemaTest {
 					assertEquals("23505",
 							assertThrows(SQLException.class, () -> sql.execute(duplicateUser)).getSQLState());
 					assertEquals("23503", assertThrows(SQLException.class,
-							() -> sql.execute("INSERT INTO user_addresses (id, user_id, created_at, updated_at) "
+							() -> sql.execute("INSERT INTO addresses (id, user_id, created_at, updated_at) "
 									+ "VALUES (gen_random_uuid(), gen_random_uuid(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
 							.getSQLState());
 				}

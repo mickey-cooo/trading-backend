@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import trading.demo.config.MarketProperties;
 import trading.demo.model.dto.orderDto.OrderResponse;
 import trading.demo.model.dto.orderDto.TradeResponse;
-import trading.demo.model.entity.ExecutionEntity;
+import trading.demo.model.entity.TradeEntity;
 import trading.demo.model.entity.OrderEntity;
 
 @Component
@@ -21,11 +21,11 @@ public class OrderMapper {
 				quantity(order.getQuantity()), limitPrice(order), order.getStatus(), order.getCreatedAt());
 	}
 
-	public TradeResponse toTradeResponse(ExecutionEntity execution) {
-		return new TradeResponse(execution.getOrder().getId(),
+	public TradeResponse toTradeResponse(TradeEntity trade) {
+		return new TradeResponse(trade.getOrder().getId(),
 				// the DB keeps 18 decimals; show the market's own, same as a fresh order
-				execution.getPrice().setScale(marketProperties.priceDecimals()).toPlainString(),
-				quantity(execution.getQuantity()), execution.getQuoteVersion(), execution.getCreatedAt());
+				trade.getPrice().setScale(marketProperties.priceDecimals()).toPlainString(),
+				quantity(trade.getQuantity()), trade.getQuoteVersion(), trade.getCreatedAt());
 	}
 
 	private String limitPrice(OrderEntity order) {

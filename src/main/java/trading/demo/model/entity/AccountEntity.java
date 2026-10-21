@@ -13,8 +13,8 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
-@Table(name = "paper_accounts")
-public class AccountEntity extends TemplateEntity {
+@Table(name = "accounts")
+public class AccountEntity extends BaseEntity {
 
 	// null for the system account
 	@OneToOne(fetch = FetchType.LAZY)

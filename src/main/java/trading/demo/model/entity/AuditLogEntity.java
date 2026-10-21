@@ -18,7 +18,7 @@ import trading.demo.model.enums.AuditAction;
 @Setter
 @Immutable
 @Table(name = "audit_logs")
-public class AuditLogEntity extends TemplateEntity {
+public class AuditLogEntity extends BaseEntity {
 
 	@Column(name = "admin_id", nullable = false)
 	private UUID adminId;

@@ -8,12 +8,12 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import trading.demo.model.entity.JournalEntryEntity;
+import trading.demo.model.entity.LedgerEntryEntity;
 
 @Repository
-public interface JournalEntryRepository extends JpaRepository<JournalEntryEntity, UUID> {
+public interface LedgerEntryRepository extends JpaRepository<LedgerEntryEntity, UUID> {
 	boolean existsByReference(String reference);
 
 	@EntityGraph(attributePaths = "asset")
-	Page<JournalEntryEntity> findByAccountId(UUID accountId, Pageable pageable);
+	Page<LedgerEntryEntity> findByAccountId(UUID accountId, Pageable pageable);
 }

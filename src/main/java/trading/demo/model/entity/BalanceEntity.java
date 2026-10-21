@@ -13,14 +13,14 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 
-// What one account holds of one asset. System accounts have no rows: their side is only in the journal.
+// What one account holds of one asset. System accounts have no rows: their side is only in the ledger.
 @Entity
 @Getter
 @Setter
 @Table(name = "balances", uniqueConstraints = @UniqueConstraint(name = "uk_balances_account_asset", columnNames = {
 		"account_id",
 		"asset_id"}), check = @CheckConstraint(name = "ck_balances_not_negative", constraint = "available >= 0 and reserved >= 0"))
-public class BalanceEntity extends TemplateEntity {
+public class BalanceEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "account_id", nullable = false)

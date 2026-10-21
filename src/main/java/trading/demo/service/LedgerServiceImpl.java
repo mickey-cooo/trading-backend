@@ -22,13 +22,13 @@ import trading.demo.model.dto.accountDto.BalanceResponse;
 import trading.demo.model.dto.accountDto.LedgerEntryResponse;
 import trading.demo.model.entity.AccountEntity;
 import trading.demo.model.entity.BalanceEntity;
-import trading.demo.model.entity.JournalEntryEntity;
+import trading.demo.model.entity.LedgerEntryEntity;
 import trading.demo.model.enums.BalanceBucket;
 import trading.demo.model.enums.LedgerType;
 import trading.demo.repository.AccountRepository;
 import trading.demo.repository.AssetRepository;
 import trading.demo.repository.BalanceRepository;
-import trading.demo.repository.JournalEntryRepository;
+import trading.demo.repository.LedgerEntryRepository;
 import trading.demo.repository.UserRepository;
 
 @Service
@@ -40,7 +40,7 @@ public class LedgerServiceImpl implements LedgerService {
 
 	private final AccountRepository accountRepository;
 	private final BalanceRepository balanceRepository;
-	private final JournalEntryRepository journalRepository;
+	private final LedgerEntryRepository ledgerEntryRepository;
 	private final AssetRepository assetRepository;
 	private final UserRepository userRepository;
 	private final AccountMapper accountMapper;
@@ -49,11 +49,11 @@ public class LedgerServiceImpl implements LedgerService {
 	private final TransactionTemplate newTransaction;
 
 	public LedgerServiceImpl(AccountRepository accountRepository, BalanceRepository balanceRepository,
-			JournalEntryRepository journalRepository, AssetRepository assetRepository, UserRepository userRepository,
+			LedgerEntryRepository ledgerEntryRepository, AssetRepository assetRepository, UserRepository userRepository,
 			AccountMapper accountMapper, EntityManager entityManager, PlatformTransactionManager transactionManager) {
 		this.accountRepository = accountRepository;
 		this.balanceRepository = balanceRepository;
-		this.journalRepository = journalRepository;
+		this.ledgerEntryRepository = ledgerEntryRepository;
 		this.assetRepository = assetRepository;
 		this.userRepository = userRepository;
 		this.accountMapper = accountMapper;
@@ -114,13 +114,13 @@ public class LedgerServiceImpl implements LedgerService {
 		requireBalanced(legs);
 		var userAccountIds = legs.stream().map(Leg::account).filter(account -> !account.isSystem())
 				.map(AccountEntity::getId).distinct().toList();
-		// lock first: a concurrent post of the same reference waits here, then sees its journal lines below
+		// lock first: a concurrent post of the same reference waits here, then sees its ledger lines below
 		var rows = userAccountIds.isEmpty()
 				? List.<BalanceEntity>of()
 				: balanceRepository.lockByAccountIds(userAccountIds);
 		// a caller may have loaded these rows earlier in this transaction; read the committed values
 		rows.forEach(row -> entityManager.refresh(row));
-		if (journalRepository.existsByReference(reference)) {
+		if (ledgerEntryRepository.existsByReference(reference)) {
 			return false;
 		}
 		for (var leg : legs) {
@@ -128,14 +128,14 @@ public class LedgerServiceImpl implements LedgerService {
 			if (!leg.account().isSystem()) {
 				apply(rows, leg, amount);
 			}
-			var line = new JournalEntryEntity();
+			var line = new LedgerEntryEntity();
 			line.setAccount(leg.account());
 			line.setAsset(leg.asset());
 			line.setBucket(leg.bucket());
 			line.setAmount(amount);
 			line.setType(type);
 			line.setReference(reference);
-			journalRepository.save(line);
+			ledgerEntryRepository.save(line);
 		}
 		return true;
 	}
@@ -183,7 +183,7 @@ public class LedgerServiceImpl implements LedgerService {
 	public Page<LedgerEntryResponse> ledger(UUID userId, int page, int size) {
 		var account = findOrOpen(userId);
 		var order = Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"));
-		return journalRepository.findByAccountId(account.getId(), PageRequest.of(page, size, order))
+		return ledgerEntryRepository.findByAccountId(account.getId(), PageRequest.of(page, size, order))
 				.map(accountMapper::toLedgerEntryResponse);
 	}
 }

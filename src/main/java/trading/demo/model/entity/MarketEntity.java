@@ -19,7 +19,7 @@ import trading.demo.model.enums.Common;
 @Getter
 @Setter
 @Table(name = "markets")
-public class MarketEntity extends TemplateEntity {
+public class MarketEntity extends BaseEntity {
 
 	// "BTC-USDT"
 	@Column(nullable = false, unique = true, length = 41)

@@ -24,7 +24,7 @@ import trading.demo.model.dto.orderDto.SubmitOrderRequest;
 import trading.demo.model.dto.orderDto.TradeResponse;
 import trading.demo.model.entity.AccountEntity;
 import trading.demo.model.entity.AssetEntity;
-import trading.demo.model.entity.ExecutionEntity;
+import trading.demo.model.entity.TradeEntity;
 import trading.demo.model.entity.MarketEntity;
 import trading.demo.model.entity.OrderEntity;
 import trading.demo.model.entity.QuoteEntity;
@@ -35,7 +35,7 @@ import trading.demo.model.enums.LedgerType;
 import trading.demo.model.enums.OrderSide;
 import trading.demo.model.enums.OrderStatus;
 import trading.demo.model.enums.OrderType;
-import trading.demo.repository.ExecutionRepository;
+import trading.demo.repository.TradeRepository;
 import trading.demo.repository.MarketRepository;
 import trading.demo.repository.OrderRepository;
 import trading.demo.repository.QuoteRepository;
@@ -48,7 +48,7 @@ public class OrderServiceImpl implements OrderService {
 	private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
 
 	private final OrderRepository orderRepository;
-	private final ExecutionRepository executionRepository;
+	private final TradeRepository tradeRepository;
 	private final MarketRepository marketRepository;
 	private final QuoteRepository quoteRepository;
 	private final UserRepository userRepository;
@@ -57,12 +57,12 @@ public class OrderServiceImpl implements OrderService {
 	private final OrderMapper orderMapper;
 	private final TransactionTemplate transaction;
 
-	public OrderServiceImpl(OrderRepository orderRepository, ExecutionRepository executionRepository,
+	public OrderServiceImpl(OrderRepository orderRepository, TradeRepository tradeRepository,
 			MarketRepository marketRepository, QuoteRepository quoteRepository, UserRepository userRepository,
 			MarketService marketService, LedgerService ledgerService, OrderMapper orderMapper,
 			PlatformTransactionManager transactionManager) {
 		this.orderRepository = orderRepository;
-		this.executionRepository = executionRepository;
+		this.tradeRepository = tradeRepository;
 		this.marketRepository = marketRepository;
 		this.quoteRepository = quoteRepository;
 		this.userRepository = userRepository;
@@ -240,12 +240,12 @@ public class OrderServiceImpl implements OrderService {
 			AccountEntity system) {
 		order.setStatus(OrderStatus.FILLED);
 
-		var execution = new ExecutionEntity();
-		execution.setOrder(order);
-		execution.setPrice(quote.getPrice());
-		execution.setQuantity(order.getQuantity());
-		execution.setQuoteVersion(quote.getVersion());
-		executionRepository.save(execution);
+		var trade = new TradeEntity();
+		trade.setOrder(order);
+		trade.setPrice(quote.getPrice());
+		trade.setQuantity(order.getQuantity());
+		trade.setQuoteVersion(quote.getVersion());
+		tradeRepository.save(trade);
 
 		var isLimitOrder = order.getType() == OrderType.LIMIT;
 		var cost = order.getQuantity().multiply(quote.getPrice());
@@ -347,7 +347,7 @@ public class OrderServiceImpl implements OrderService {
 
 	@Override
 	public Page<TradeResponse> trades(UUID userId, int page, int size) {
-		return executionRepository.findByOrderUserId(userId, newestFirst(page, size)).map(orderMapper::toTradeResponse);
+		return tradeRepository.findByOrderUserId(userId, newestFirst(page, size)).map(orderMapper::toTradeResponse);
 	}
 
 	private static PageRequest newestFirst(int page, int size) {

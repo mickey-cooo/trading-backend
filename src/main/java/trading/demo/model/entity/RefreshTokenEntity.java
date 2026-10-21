@@ -17,7 +17,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Table(name = "refresh_tokens", indexes = @Index(name = "idx_refresh_tokens_family", columnList = "family_id"))
-public class RefreshTokenEntity extends TemplateEntity {
+public class RefreshTokenEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)

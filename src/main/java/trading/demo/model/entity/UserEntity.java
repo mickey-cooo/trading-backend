@@ -29,7 +29,7 @@ import trading.demo.model.enums.RoleType;
 @Getter
 @Setter
 @Table(name = "users")
-public class UserEntity extends TemplateEntity implements UserDetails {
+public class UserEntity extends BaseEntity implements UserDetails {
 
 	@Size(max = 100)
 	@Column(name = "first_name", length = 100)

@@ -26,7 +26,7 @@ import trading.demo.model.enums.OrderType;
 @Table(name = "orders", check = @CheckConstraint(name = "ck_orders_limit_has_price", constraint = "type <> 'LIMIT' or limit_price is not null"), uniqueConstraints = @UniqueConstraint(name = "uk_orders_user_idempotency_key", columnNames = {
 		"user_id",
 		"idempotency_key"}), indexes = @Index(name = "idx_orders_user_created_at", columnList = "user_id, created_at"))
-public class OrderEntity extends TemplateEntity {
+public class OrderEntity extends BaseEntity {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)

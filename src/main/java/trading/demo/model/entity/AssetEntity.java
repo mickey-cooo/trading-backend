@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Table(name = "assets")
-public class AssetEntity extends TemplateEntity {
+public class AssetEntity extends BaseEntity {
 
 	@Column(nullable = false, unique = true, length = 20)
 	private String symbol;
