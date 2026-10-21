@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,8 +35,18 @@ class PriceSimulatorTest {
 	}
 
 	private PriceSimulator simulator(double volatility, Map<String, BigDecimal> startPrices) {
-		return new PriceSimulator(marketService, new SimulatorProperties(true, 42, volatility, startPrices),
-				new MarketProperties(2, 8, 18));
+		var simulator = new PriceSimulator(marketService,
+				new SimulatorProperties(true, 42, volatility, startPrices), new MarketProperties(2, 8, 18));
+		simulator.startTicking();
+		return simulator;
+	}
+
+	@Test
+	void doesNothingBeforeStartupIsDone() {
+		new PriceSimulator(marketService, new SimulatorProperties(true, 42, 0.0005, Map.of()),
+				new MarketProperties(2, 8, 18)).tick();
+
+		verifyNoInteractions(marketService);
 	}
 
 	private static MarketResponse market(String pair, Common status) {

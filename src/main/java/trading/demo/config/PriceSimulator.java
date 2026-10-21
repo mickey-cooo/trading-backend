@@ -9,6 +9,8 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +29,8 @@ public class PriceSimulator {
 	private final MarketProperties marketProperties;
 	private final Random random;
 	private final Map<String, BigDecimal> startPrices = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+	// stays false until startup runners (like QuoteHistorySeeder) are done, so both never write quote versions at once
+	private volatile boolean isStartupDone = false;
 
 	public PriceSimulator(MarketService marketService, SimulatorProperties properties,
 			MarketProperties marketProperties) {
@@ -37,8 +41,16 @@ public class PriceSimulator {
 		this.startPrices.putAll(properties.startPrices());
 	}
 
+	@EventListener(ApplicationReadyEvent.class)
+	public void startTicking() {
+		isStartupDone = true;
+	}
+
 	@Scheduled(fixedDelay = 1000)
 	public void tick() {
+		if (!isStartupDone) {
+			return;
+		}
 		for (var market : marketService.listMarkets()) {
 			if (market.status() != Common.ACTIVE) {
 				continue;
