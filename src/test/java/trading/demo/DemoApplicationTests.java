@@ -186,15 +186,24 @@ class DemoApplicationTests {
 				.content("{\"refreshToken\":\"" + last + "\"}")).andExpect(status().isUnauthorized());
 	}
 
-	// Markets: MarketSeeder creates BTC-USDT and ETH-USDT. Tests publish to BTC-USDT only; ETH-USDT has no quotes.
+	// Markets: MarketSeeder creates BTC-USDT, ETH-USDT and 10 stock pairs. Tests publish to BTC-USDT only; ETH-USDT has no quotes.
 	@Test
 	void marketsArePublicAndSeeded() throws Exception {
-		mockMvc.perform(get("/api/v1/markets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
-				.andExpect(jsonPath("$[0].pair").value("BTC-USDT")).andExpect(jsonPath("$[0].base").value("BTC"))
-				.andExpect(jsonPath("$[0].quote").value("USDT")).andExpect(jsonPath("$[0].status").value("ACTIVE"))
-				.andExpect(jsonPath("$[0].quantityIncrement").value("0.00000001"))
-				.andExpect(jsonPath("$[0].priceIncrement").value("0.01"))
-				.andExpect(jsonPath("$[1].pair").value("ETH-USDT"));
+		mockMvc.perform(get("/api/v1/markets")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(12))
+				.andExpect(jsonPath("$[3].pair").value("BTC-USDT")).andExpect(jsonPath("$[3].base").value("BTC"))
+				.andExpect(jsonPath("$[3].quote").value("USDT")).andExpect(jsonPath("$[3].status").value("ACTIVE"))
+				.andExpect(jsonPath("$[3].quantityIncrement").value("0.00000001"))
+				.andExpect(jsonPath("$[3].priceIncrement").value("0.01"))
+				.andExpect(jsonPath("$[4].pair").value("ETH-USDT"));
+	}
+
+	@Test
+	void everyStockStartsWithAPrice() throws Exception {
+		for (var symbol : new String[]{"AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "NFLX", "AMD",
+				"INTC"}) {
+			mockMvc.perform(get("/api/v1/markets/" + symbol + "-USDT/quote")).andExpect(status().isOk())
+					.andExpect(jsonPath("$.price").exists());
+		}
 	}
 
 	@Test
