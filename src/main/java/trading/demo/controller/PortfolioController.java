@@ -10,7 +10,7 @@ import trading.demo.service.PortfolioService;
 
 // The caller's own holdings: the account always comes from the token, never the URL.
 @RestController
-@RequestMapping("/api/v1/portfolio")
+@RequestMapping("/portfolio")
 public class PortfolioController {
 	private final PortfolioService portfolioService;
 

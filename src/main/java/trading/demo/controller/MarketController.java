@@ -22,7 +22,7 @@ import trading.demo.service.QuoteStream;
 // Read-only and public (see SecurityConfig), so a chart page works before login.
 @RestController
 @Validated
-@RequestMapping("/api/v1/markets")
+@RequestMapping("/markets")
 public class MarketController {
 	private final MarketService marketService;
 	private final QuoteStream quoteStream;

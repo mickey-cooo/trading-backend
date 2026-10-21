@@ -11,14 +11,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.web.server.ResponseStatusException;
 
+import trading.demo.config.WebConfig;
 import trading.demo.controller.MarketController;
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.model.dto.marketDto.CandleResponse;
@@ -32,7 +35,8 @@ class QuoteStreamTest {
 	void setUp() {
 		marketService = mock(MarketService.class);
 		quoteStream = new QuoteStream(marketService, Runnable::run);
-		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, quoteStream)).build();
+		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, quoteStream))
+				.setCustomHandlerMapping(QuoteStreamTest::prefixedHandlerMapping).build();
 	}
 
 	@Test
@@ -55,7 +59,8 @@ class QuoteStreamTest {
 	void broadcastReturnsAtOnceAndSendsLaterOnTheSenderThread() throws Exception {
 		var queued = new ArrayList<Runnable>();
 		var stream = new QuoteStream(marketService, queued::add);
-		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, stream)).build();
+		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, stream))
+				.setCustomHandlerMapping(QuoteStreamTest::prefixedHandlerMapping).build();
 		when(marketService.getCandles("BTC-USDT", "1m", 1))
 				.thenReturn(List.of(new CandleResponse(60, "100.00", "101.00", "99.00", "100.50")));
 		var result = mvc.perform(get("/api/v1/markets/BTC-USDT/stream").accept(MediaType.TEXT_EVENT_STREAM))
@@ -112,5 +117,12 @@ class QuoteStreamTest {
 		}
 
 		assertThrows(ResponseStatusException.class, () -> quoteStream.subscribe("BTC-USDT", "1m"));
+	}
+
+	// standalone MockMvc skips WebConfig, so give it the same /api/v1 prefix
+	private static RequestMappingHandlerMapping prefixedHandlerMapping() {
+		var handlerMapping = new RequestMappingHandlerMapping();
+		handlerMapping.setPathPrefixes(Map.of(WebConfig.API_PREFIX, type -> true));
+		return handlerMapping;
 	}
 }

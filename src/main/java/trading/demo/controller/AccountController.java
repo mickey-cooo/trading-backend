@@ -19,7 +19,7 @@ import trading.demo.service.LedgerService;
 // The caller's own money: the account always comes from the token, never the URL.
 @RestController
 @Validated
-@RequestMapping("/api/v1/accounts/me")
+@RequestMapping("/accounts/me")
 public class AccountController {
 	private final LedgerService ledgerService;
 

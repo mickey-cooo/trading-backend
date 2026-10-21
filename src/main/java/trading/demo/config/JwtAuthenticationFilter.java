@@ -29,7 +29,7 @@ import trading.demo.security.JwtTokenProvider;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private static final RequestMatcher AUTH_ROUTES = PathPatternRequestMatcher.withDefaults()
-			.matcher("/api/v1/auth/**");
+			.matcher(WebConfig.API_PREFIX + "/auth/**");
 
 	// a signed HS256 token with sub/iat/exp is ~200 chars
 	private static final int MAX_AUTH_HEADER_LENGTH = 2048;

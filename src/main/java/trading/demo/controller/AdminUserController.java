@@ -19,7 +19,7 @@ import trading.demo.service.AdminService;
 // Only an ADMIN can suspend or reactivate a user.
 @RestController
 @Validated
-@RequestMapping("/api/v1/admin/users")
+@RequestMapping("/admin/users")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 	private final AdminService adminService;

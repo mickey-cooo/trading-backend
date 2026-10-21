@@ -23,7 +23,7 @@ import trading.demo.service.AdminService;
 // Only an ADMIN can set a price or switch a market on and off.
 @RestController
 @Validated
-@RequestMapping("/api/v1/admin/markets")
+@RequestMapping("/admin/markets")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminMarketController {
 	private final AdminService adminService;

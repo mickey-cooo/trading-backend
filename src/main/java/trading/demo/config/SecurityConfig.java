@@ -30,8 +30,9 @@ import trading.demo.repository.UserRepository;
 @EnableMethodSecurity
 public class SecurityConfig {
 	// open to everyone, no token needed (JwtAuthenticationFilter skips these too)
-	public static final String[] PUBLIC_MARKET_GET_PATHS = {"/api/v1/markets", "/api/v1/markets/*/quote",
-			"/api/v1/markets/*/candles", "/api/v1/markets/*/stream"};
+	public static final String[] PUBLIC_MARKET_GET_PATHS = {WebConfig.API_PREFIX + "/markets",
+			WebConfig.API_PREFIX + "/markets/*/quote",
+			WebConfig.API_PREFIX + "/markets/*/candles", WebConfig.API_PREFIX + "/markets/*/stream"};
 
 	// the API docs are public so a new developer can read them before logging in
 	public static final String[] PUBLIC_DOCS_PATHS = {"/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html",
@@ -41,9 +42,10 @@ public class SecurityConfig {
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
 			throws Exception {
 		http.csrf(csrf -> csrf.disable()).cors(Customizer.withDefaults())
-				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/v1/auth/**", "/error").permitAll()
+				.authorizeHttpRequests(auth -> auth.requestMatchers(WebConfig.API_PREFIX + "/auth/**", "/error")
+						.permitAll()
 						// non-admins are denied before the body is read
-						.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+						.requestMatchers(WebConfig.API_PREFIX + "/admin/**").hasRole("ADMIN")
 						// public prices: only listed routes
 						.requestMatchers(HttpMethod.GET, PUBLIC_MARKET_GET_PATHS).permitAll()
 						.requestMatchers(HttpMethod.GET, PUBLIC_DOCS_PATHS).permitAll().anyRequest().authenticated())

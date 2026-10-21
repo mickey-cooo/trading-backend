@@ -16,7 +16,7 @@ import trading.demo.service.AuthService;
 import trading.demo.service.UserService;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/auth")
 public class AuthController {
 	private final UserService userService;
 	private final AuthService authService;
