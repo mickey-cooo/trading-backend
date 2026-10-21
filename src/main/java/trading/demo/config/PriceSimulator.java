@@ -2,6 +2,7 @@ package trading.demo.config;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.model.enums.Common;
+import trading.demo.service.MarketHours;
 import trading.demo.service.MarketService;
 
 // Every second, moves the price of each active market a little. Goes through publishQuote, so all price rules apply.
@@ -25,6 +27,7 @@ public class PriceSimulator {
 	private static final Logger log = LoggerFactory.getLogger(PriceSimulator.class);
 
 	private final MarketService marketService;
+	private final MarketHours marketHours;
 	private final SimulatorProperties properties;
 	private final MarketProperties marketProperties;
 	private final Random random;
@@ -32,9 +35,10 @@ public class PriceSimulator {
 	// stays false until startup runners (like QuoteHistorySeeder) are done, so both never write quote versions at once
 	private volatile boolean isStartupDone = false;
 
-	public PriceSimulator(MarketService marketService, SimulatorProperties properties,
+	public PriceSimulator(MarketService marketService, MarketHours marketHours, SimulatorProperties properties,
 			MarketProperties marketProperties) {
 		this.marketService = marketService;
+		this.marketHours = marketHours;
 		this.properties = properties;
 		this.marketProperties = marketProperties;
 		this.random = new Random(properties.seed());
@@ -48,7 +52,8 @@ public class PriceSimulator {
 
 	@Scheduled(fixedDelay = 1000)
 	public void tick() {
-		if (!isStartupDone) {
+		// market closed: no new quotes, so the last price stays frozen until it opens again
+		if (!isStartupDone || !marketHours.isOpenAt(Instant.now())) {
 			return;
 		}
 		for (var market : marketService.listMarkets()) {

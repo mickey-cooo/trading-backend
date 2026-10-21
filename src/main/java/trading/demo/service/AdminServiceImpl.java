@@ -1,6 +1,7 @@
 package trading.demo.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -22,14 +23,16 @@ import trading.demo.repository.UserRepository;
 @Service
 public class AdminServiceImpl implements AdminService {
 	private final MarketService marketService;
+	private final MarketHours marketHours;
 	private final OrderService orderService;
 	private final UserRepository userRepository;
 	private final AuditLogRepository auditLogRepository;
 	private final UserMapper userMapper;
 
-	public AdminServiceImpl(MarketService marketService, OrderService orderService, UserRepository userRepository,
-			AuditLogRepository auditLogRepository, UserMapper userMapper) {
+	public AdminServiceImpl(MarketService marketService, MarketHours marketHours, OrderService orderService,
+			UserRepository userRepository, AuditLogRepository auditLogRepository, UserMapper userMapper) {
 		this.marketService = marketService;
+		this.marketHours = marketHours;
 		this.orderService = orderService;
 		this.userRepository = userRepository;
 		this.auditLogRepository = auditLogRepository;
@@ -39,6 +42,8 @@ public class AdminServiceImpl implements AdminService {
 	@Override
 	@Transactional
 	public QuoteResponse publishQuote(UUID adminId, String pair, BigDecimal price) {
+		// the price is frozen while the market is closed
+		marketHours.requireOpenAt(Instant.now());
 		var quote = marketService.publishQuote(pair, price);
 		writeAuditLog(adminId, AuditAction.QUOTE_PUBLISHED, quote.pair(), quote.price());
 		return quote;

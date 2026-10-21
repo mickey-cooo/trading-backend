@@ -24,18 +24,22 @@ import trading.demo.exception.ResourceNotFoundException;
 import trading.demo.model.dto.marketDto.MarketResponse;
 import trading.demo.model.dto.marketDto.QuoteResponse;
 import trading.demo.model.enums.Common;
+import trading.demo.service.MarketHours;
 import trading.demo.service.MarketService;
 
 class PriceSimulatorTest {
 	private MarketService marketService;
+	private MarketHours marketHours;
 
 	@BeforeEach
 	void setUp() {
 		marketService = mock(MarketService.class);
+		marketHours = mock(MarketHours.class);
+		when(marketHours.isOpenAt(any())).thenReturn(true);
 	}
 
 	private PriceSimulator simulator(double volatility, Map<String, BigDecimal> startPrices) {
-		var simulator = new PriceSimulator(marketService,
+		var simulator = new PriceSimulator(marketService, marketHours,
 				new SimulatorProperties(true, 42, volatility, startPrices), new MarketProperties(2, 8, 18));
 		simulator.startTicking();
 		return simulator;
@@ -43,10 +47,20 @@ class PriceSimulatorTest {
 
 	@Test
 	void doesNothingBeforeStartupIsDone() {
-		new PriceSimulator(marketService, new SimulatorProperties(true, 42, 0.0005, Map.of()),
+		new PriceSimulator(marketService, marketHours, new SimulatorProperties(true, 42, 0.0005, Map.of()),
 				new MarketProperties(2, 8, 18)).tick();
 
 		verifyNoInteractions(marketService);
+	}
+
+	@Test
+	void publishesNothingWhileTheMarketIsClosed() {
+		when(marketHours.isOpenAt(any())).thenReturn(false);
+		when(marketService.listMarkets()).thenReturn(List.of(market("BTC-USDT", Common.ACTIVE)));
+
+		simulator(0.0005, Map.of()).tick();
+
+		verify(marketService, never()).publishQuote(anyString(), any());
 	}
 
 	private static MarketResponse market(String pair, Common status) {
