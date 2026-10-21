@@ -31,7 +31,7 @@ import trading.demo.repository.UserRepository;
 public class SecurityConfig {
 	// open to everyone, no token needed (JwtAuthenticationFilter skips these too)
 	public static final String[] PUBLIC_MARKET_GET_PATHS = {WebConfig.API_PREFIX + "/markets",
-			WebConfig.API_PREFIX + "/markets/*/quote",
+			WebConfig.API_PREFIX + "/markets/hours", WebConfig.API_PREFIX + "/markets/*/quote",
 			WebConfig.API_PREFIX + "/markets/*/candles", WebConfig.API_PREFIX + "/markets/*/stream"};
 
 	// the API docs are public so a new developer can read them before logging in

@@ -1,6 +1,7 @@
 package trading.demo.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -53,13 +54,14 @@ public class OrderServiceImpl implements OrderService {
 	private final QuoteRepository quoteRepository;
 	private final UserRepository userRepository;
 	private final MarketService marketService;
+	private final MarketHours marketHours;
 	private final LedgerService ledgerService;
 	private final OrderMapper orderMapper;
 	private final TransactionTemplate transaction;
 
 	public OrderServiceImpl(OrderRepository orderRepository, TradeRepository tradeRepository,
 			MarketRepository marketRepository, QuoteRepository quoteRepository, UserRepository userRepository,
-			MarketService marketService, LedgerService ledgerService, OrderMapper orderMapper,
+			MarketService marketService, MarketHours marketHours, LedgerService ledgerService, OrderMapper orderMapper,
 			PlatformTransactionManager transactionManager) {
 		this.orderRepository = orderRepository;
 		this.tradeRepository = tradeRepository;
@@ -67,6 +69,7 @@ public class OrderServiceImpl implements OrderService {
 		this.quoteRepository = quoteRepository;
 		this.userRepository = userRepository;
 		this.marketService = marketService;
+		this.marketHours = marketHours;
 		this.ledgerService = ledgerService;
 		this.orderMapper = orderMapper;
 		this.transaction = new TransactionTemplate(transactionManager);
@@ -89,6 +92,8 @@ public class OrderServiceImpl implements OrderService {
 		if (earlier.isPresent()) {
 			return replay(earlier.get(), hash);
 		}
+		// after the replay lookup so a retry of an accepted order still gets its answer; before any lock or account work
+		marketHours.requireOpenAt(Instant.now());
 		var account = ledgerService.findOrOpen(userId);
 		var system = ledgerService.systemAccount();
 		try {
@@ -189,6 +194,10 @@ public class OrderServiceImpl implements OrderService {
 	// shortcut: reads every open order each second; add a price filter in the query when there are many
 	@Override
 	public void matchOpenOrders() {
+		// outside trading hours nothing fills; one check per tick, before any query
+		if (!marketHours.isOpenAt(Instant.now())) {
+			return;
+		}
 		var openOrderIds = orderRepository.findOpenOrderIds();
 		if (openOrderIds.isEmpty()) {
 			return;

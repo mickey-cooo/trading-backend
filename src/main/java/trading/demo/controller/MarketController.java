@@ -1,5 +1,6 @@
 package trading.demo.controller;
 
+import java.time.Instant;
 import java.util.List;
 
 import jakarta.validation.constraints.Max;
@@ -14,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import trading.demo.model.dto.marketDto.CandleResponse;
+import trading.demo.model.dto.marketDto.MarketHoursResponse;
 import trading.demo.model.dto.marketDto.MarketResponse;
 import trading.demo.model.dto.marketDto.QuoteResponse;
+import trading.demo.service.MarketHours;
 import trading.demo.service.MarketService;
 import trading.demo.service.QuoteStream;
 
@@ -26,15 +29,23 @@ import trading.demo.service.QuoteStream;
 public class MarketController {
 	private final MarketService marketService;
 	private final QuoteStream quoteStream;
+	private final MarketHours marketHours;
 
-	public MarketController(MarketService marketService, QuoteStream quoteStream) {
+	public MarketController(MarketService marketService, QuoteStream quoteStream, MarketHours marketHours) {
 		this.marketService = marketService;
 		this.quoteStream = quoteStream;
+		this.marketHours = marketHours;
 	}
 
 	@GetMapping
 	public List<MarketResponse> listMarkets() {
 		return marketService.listMarkets();
+	}
+
+	// daily trading window (UTC) and whether it is open right now
+	@GetMapping("/hours")
+	public MarketHoursResponse getMarketHours() {
+		return marketHours.describeAt(Instant.now());
 	}
 
 	// current price; stays current until the next quote, 404 before the first

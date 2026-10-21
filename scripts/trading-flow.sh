@@ -5,6 +5,7 @@
 #
 # Needs: curl, jq, and an admin account (the admin publishes the prices).
 #   ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=... ./scripts/trading-flow.sh
+# The API must run with MARKET_HOURS_ENABLED=false, or orders are refused outside 20:00-23:00 UTC.
 # Optional: BASE_URL (default http://localhost:8080), MATCH_WAIT_SECONDS (default 3, the matcher runs every second).
 # For a local or test API only: passwords and tokens go on curl's command line, so other users on this machine can see them in `ps`.
 # Run it on a fresh database for exact numbers: it expects the new user to start with 10,000 USDT.

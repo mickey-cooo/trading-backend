@@ -91,6 +91,8 @@ class DemoApplicationTests {
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
 		// tests call matchOpenOrders() themselves, so the one-second job must not race them
 		registry.add("app.matcher.enabled", () -> "false");
+		// the order tests run at any hour
+		registry.add("app.market-hours.enabled", () -> "false");
 		registry.add("security.jwt.secret-key", () -> Base64.getEncoder().encodeToString(new byte[32]));
 	}
 

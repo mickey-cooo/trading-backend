@@ -35,7 +35,7 @@ class QuoteStreamTest {
 	void setUp() {
 		marketService = mock(MarketService.class);
 		quoteStream = new QuoteStream(marketService, Runnable::run);
-		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, quoteStream))
+		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, quoteStream, mock(MarketHours.class)))
 				.setCustomHandlerMapping(QuoteStreamTest::prefixedHandlerMapping).build();
 	}
 
@@ -59,7 +59,7 @@ class QuoteStreamTest {
 	void broadcastReturnsAtOnceAndSendsLaterOnTheSenderThread() throws Exception {
 		var queued = new ArrayList<Runnable>();
 		var stream = new QuoteStream(marketService, queued::add);
-		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, stream))
+		mvc = MockMvcBuilders.standaloneSetup(new MarketController(marketService, stream, mock(MarketHours.class)))
 				.setCustomHandlerMapping(QuoteStreamTest::prefixedHandlerMapping).build();
 		when(marketService.getCandles("BTC-USDT", "1m", 1))
 				.thenReturn(List.of(new CandleResponse(60, "100.00", "101.00", "99.00", "100.50")));
